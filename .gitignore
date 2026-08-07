@@ -1,0 +1,11 @@
+# derived caches — regenerate with data_io.load_ohlc(), never committed because
+# pickle format is tied to the pandas version that wrote it
+*.pkl
+__pycache__/
+*.pyc
+backtest_report.html
+trades*.csv
+
+# local tooling
+.claude/
+_to_delete/
