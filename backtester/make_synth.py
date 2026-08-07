@@ -105,7 +105,8 @@ def make_synth(start="2026-02-05", end="2026-08-05", start_price=3300.0, seed=7)
 
 if __name__ == "__main__":
     d = make_synth()
-    d.drop(columns=["regime_true"]).to_csv("/home/claude/synth_xauusd_5m.csv")
+    from paths import report_dir
+    d.drop(columns=["regime_true"]).to_csv(report_dir() / "synth_xauusd_5m.csv")
     tr = d.high - d.low
     print(f"bars={len(d):,}  {d.index[0]} -> {d.index[-1]}")
     print(f"price {d.close.min():.1f}-{d.close.max():.1f}   mean 5m range ${tr.mean():.2f}")

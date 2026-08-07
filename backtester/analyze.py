@@ -16,8 +16,10 @@ import pandas as pd
 warnings.filterwarnings("ignore")
 from xau_engine import Config, backtest, stats
 
-M5 = pd.read_pickle("/home/claude/m5.pkl")
-M1 = pd.read_pickle("/home/claude/m1.pkl")
+from paths import dataset, report_dir
+
+M5 = dataset("m5")
+M1 = dataset("m1")
 LON = "Europe/London"
 
 
@@ -134,7 +136,7 @@ for k, vals in sens.items():
                           round(s2["net_gbp"], 2), round(s2["expectancy_r"], 3)])
 sdf = pd.DataFrame(sens_rows, columns=["param", "value", "trades", "win%", "net_£", "exp_R"])
 print(sdf.to_string(index=False))
-sdf.to_csv("/home/claude/sensitivity.csv", index=False)
+sdf.to_csv(report_dir() / "sensitivity.csv", index=False)
 
 # ── walk-forward: tune on everything BEFORE a week, test ON that week ───────
 print()
@@ -194,5 +196,5 @@ print(f"across the {len(spread_of_grid)} grid points, expectancy ranges "
       f"{spread_of_grid.min():+.3f}R to {spread_of_grid.max():+.3f}R "
       f"(sd {spread_of_grid.std():.3f})")
 
-tr.to_csv("/home/claude/trades_real.csv", index=False)
+tr.to_csv(report_dir() / "trades_real.csv", index=False)
 print("\nsaved: trades_real.csv, sensitivity.csv")

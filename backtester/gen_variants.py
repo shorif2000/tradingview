@@ -22,7 +22,9 @@ breakout are split OUT because they lose money and drag the pair down from
 from __future__ import annotations
 import re
 
-SRC = "XAU_Regime_Scalper_INDICATOR.pine"
+from paths import PINE, VARIANTS as VARIANT_DIR
+
+SRC = PINE / "XAU_Regime_Scalper_INDICATOR.pine"
 master = open(SRC).read()
 
 
@@ -198,7 +200,8 @@ for fname, spec in VARIANTS.items():
     text = retitle(master, spec["title"], spec["short"], spec["header"])
     for var, val in spec["defaults"].items():
         text = set_default(text, var, val)
-    open(fname, "w").write(text)
+    VARIANT_DIR.mkdir(parents=True, exist_ok=True)
+    open(VARIANT_DIR / fname, "w").write(text)
     print(f"{fname:<36} {len(text.splitlines()):>5} lines   "
           f"{len(spec['defaults'])} defaults changed")
 print("\nAll three share one verified codebase — a fix in the master reaches all of them.")

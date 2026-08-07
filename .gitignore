@@ -6,6 +6,10 @@ __pycache__/
 backtest_report.html
 trades*.csv
 
-# local tooling
+# build artefacts from the backtester
+reports/
+.cache/
+
+# local tooling and the bridge's delete-workaround folder
 .claude/
 _to_delete/

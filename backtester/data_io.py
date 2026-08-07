@@ -10,6 +10,7 @@ Resamples to 5 minutes if the source is finer (e.g. 1-minute data).
 """
 from __future__ import annotations
 import io
+import os
 import re
 import numpy as np
 import pandas as pd
@@ -31,6 +32,10 @@ def _preclean(path: str) -> str:
     Some exports are scraped chart tables rather than broker files: tabs mixed
     into a comma-separated header, thousands separators inside quoted numbers,
     reverse chronological order and a null glyph. Normalise those to plain CSV.
+
+    The normalised copy goes to the cache directory, not next to the source. It
+    is a derived artefact, and writing it beside the input left junk files inside
+    data/ that then showed up as untracked changes in git.
     """
     with open(path, "r", errors="replace") as f:
         txt = f.read()
@@ -39,7 +44,16 @@ def _preclean(path: str) -> str:
         txt = txt.replace("\t", "")
         txt = txt.replace("\u2205", "")                 # null glyph
         txt = txt.replace("\u2212", "-")                # unicode minus
-        out = path + ".clean.csv"
+        try:
+            from paths import CACHE
+            CACHE.mkdir(parents=True, exist_ok=True)
+            out = str(CACHE / (os.path.basename(path) + ".clean.csv"))
+        except Exception:
+            # paths.py unavailable (data_io copied out standalone) - fall back to
+            # a temp file rather than writing into the caller's data directory
+            import tempfile
+            fd, out = tempfile.mkstemp(suffix=".clean.csv")
+            os.close(fd)
         with open(out, "w") as f:
             f.write(txt)
         return out

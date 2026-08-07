@@ -17,9 +17,11 @@ from report import CSS, equity_chart, bar_chart, table_view
 from signal_accuracy import excursions, wilson
 
 LON = "Europe/London"
-A5 = pd.read_pickle("/home/claude/m5.pkl")
-A1 = pd.read_pickle("/home/claude/m1.pkl")
-B5 = pd.read_pickle("/home/claude/m5_summer.pkl")
+from paths import dataset, report_dir
+
+A5 = dataset("m5")
+A1 = dataset("m1")
+B5 = dataset("m5_summer")
 
 
 def cfg_for(sample: str, **over) -> Config:
@@ -386,9 +388,9 @@ document.getElementById('tg').onclick=()=>{{
  r.dataset.theme=cur==='dark'?'light':'dark';}};
 </script></body></html>"""
 
-open("/home/claude/backtest_report.html", "w").write(HTML)
+open(report_dir() / "backtest_report.html", "w").write(HTML)
 for r in results:
-    r["tr"].to_csv(f"/home/claude/trades_sample_{r['key']}.csv", index=False)
+    r["tr"].to_csv(report_dir() / f"trades_sample_{r['key']}.csv", index=False)
 print(f"pooled {len(pooled)} trades | {(pooled>0).mean()*100:.1f}% WR | "
       f"{pooled.mean():+.3f}R | CI {ci[0]:+.3f} to {ci[1]:+.3f} | P(no edge) {p_no:.2f}%")
 for r in results:

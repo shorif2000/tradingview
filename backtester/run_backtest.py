@@ -59,9 +59,20 @@ def main():
     ap.add_argument("--rr", type=float, default=2.0)
     ap.add_argument("--balance", type=float, default=100.0)
     ap.add_argument("--lots", type=float, default=0.01)
-    ap.add_argument("--out", default="/home/claude/backtest_report.html")
-    ap.add_argument("--trades-out", default="/home/claude/trades.csv")
+    ap.add_argument("--out", default=None,
+                    help="HTML report path (default: <repo>/reports/backtest_report.html)")
+    ap.add_argument("--trades-out", default=None,
+                    help="trades CSV path (default: <repo>/reports/trades.csv)")
     a = ap.parse_args()
+
+    # Resolved here rather than as argparse defaults so the paths land inside the
+    # repo the script actually lives in, not the directory it happens to be run
+    # from — and so `reports/` is only created when a run is about to write there.
+    from paths import report_dir
+    if a.out is None:
+        a.out = str(report_dir() / "backtest_report.html")
+    if a.trades_out is None:
+        a.trades_out = str(report_dir() / "trades.csv")
 
     if a.synth:
         from make_synth import make_synth

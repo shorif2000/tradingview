@@ -4,7 +4,9 @@ Generate the Pine STRATEGY file from the INDICATOR file.
 The two scripts must never disagree, so only one of them is hand-maintained.
 Edit XAU_Regime_Scalper_INDICATOR.pine, then re-run this.
 """
-src = open("XAU_Regime_Scalper_INDICATOR.pine").read()
+from paths import PINE
+
+src = open(PINE / "XAU_Regime_Scalper_INDICATOR.pine").read()
 s = src
 n = 0
 
@@ -185,5 +187,5 @@ if showTable and barstate.islast
 if entLong and barstate.isconfirmed''')
 rep('if newShort and barstate.isconfirmed\n    alert("XAUUSD SELL "', 'if entShort and barstate.isconfirmed\n    alert("XAUUSD SELL "')
 
-open("XAU_Regime_Scalper_STRATEGY.pine", "w").write(s)
+open(PINE / "XAU_Regime_Scalper_STRATEGY.pine", "w").write(s)
 print(f"strategy generated from indicator: {n} transforms, {len(s.splitlines())} lines")

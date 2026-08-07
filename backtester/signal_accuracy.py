@@ -25,9 +25,11 @@ warnings.filterwarnings("ignore")
 from xau_engine import Config, backtest, stats, _m1_index
 
 LON = "Europe/London"
-A5 = pd.read_pickle("/home/claude/m5.pkl")
-A1 = pd.read_pickle("/home/claude/m1.pkl")
-B5 = pd.read_pickle("/home/claude/m5_summer.pkl")
+from paths import dataset, report_dir
+
+A5 = dataset("m5")
+A1 = dataset("m1")
+B5 = dataset("m5_summer")
 BREAKEVEN_WR = 1.0 / 3.0 * 100.0          # 33.3% at 2R
 
 
@@ -217,7 +219,7 @@ def main():
                   f"{O.pnl_gbp.sum():>+8.2f} {O.r_multiple.mean():>+7.2f}   "
                   f"{U.pnl_gbp.sum():>+8.2f} ({U.r_multiple.mean():+.2f}R) untuned")
 
-    allt.to_csv("/home/claude/trades_with_accuracy.csv", index=False)
+    allt.to_csv(report_dir() / "trades_with_accuracy.csv", index=False)
     print("\nsaved trades_with_accuracy.csv (adds mfe_r, mae_r, first_1r per trade)")
 
 
