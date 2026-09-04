@@ -475,6 +475,15 @@ Do not re-attempt without new evidence. Each was tested and failed.
 - **The breakout module is Python-only.** Never wired into Pine because it measured
   −0.08R; wiring it would mean restructuring a working script for a feature the data
   says to leave alone.
+- **Manual trading from £100 is not viable on any timeframe** — 0.01 lots is the
+  MT5 minimum, and a 1.2×ATR stop is 3.4% of £100 on 3M rising to 29.4% on 4H.
+  Every timeframe ruined the account, 1H in eight trades.
+  `docs/FINDINGS_manual_trading_100.md`.
+- **Timeframe ranking flips for the range filter once exits hold winners.** On
+  the indicator's real signals, held to the opposite signal rather than a fixed
+  2R: 3M −0.162R, 5M −0.087R, 15M +0.100R, 1H +0.223R, 4H +0.423R. 4H properly
+  sized at 2% turns £100 into £281 over 20 months (~£2.40/week, 30% DD) — one
+  sample, 150 trades, unreplicated, and it needs ~£1,470 to size correctly.
 - **The indicator has now been measured, and its signals have no edge.** The dual
   range filter scores +0.002R over 1,131 trades, CI [−0.079, +0.084], P(no edge)
   49%, using a rule CALIBRATED against the indicator's own per-bar signal values
