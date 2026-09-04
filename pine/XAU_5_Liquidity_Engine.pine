@@ -128,6 +128,15 @@ rfMode  = input.string("Fast only", "Signal source", group = gRF,
      tooltip = "Settled by calibration, not deduction. A single filter at 38/1.8 " +
                "reproduces 159 of the reference 169 markers on 5M (F1 0.96) and " +
                "152 of 170 on 3M. Requiring both to agree reproduces far fewer.")
+minAdx  = input.float(20.0, "Minimum ADX to accept a signal", minval = 0, step = 1, group = gRF,
+     tooltip = "0 = the reference unfiltered behaviour.\n\n" +
+               "20 removes 41% of signals - the low-trend-strength ones, where a " +
+               "trend-follower has no business firing - and nudges measured " +
+               "expectancy from -0.031R to +0.053R over 670 trades.\n\n" +
+               "Be clear about what that is worth: the interval still contains " +
+               "zero (P(no edge) 22%). It is here because paying a spread on 41% " +
+               "fewer trades is worth having, NOT because it is proven profitable. " +
+               "docs/FINDINGS_signal_improvement.md has the working.")
 showBands = input.bool(false, "Draw the fast filter and its band", group = gRF)
 
 // Smoothed range: an EMA of bar-to-bar movement, smoothed again over a window
@@ -184,8 +193,15 @@ longRaw  = rfMode == "Fast only" ? fLongRaw  : rfMode == "Slow only" ? sLongRaw 
 shortRaw = rfMode == "Fast only" ? fShortRaw : rfMode == "Slow only" ? sShortRaw : fShortRaw and sShortRaw
 
 [rfLongSig, rfShortSig] = f_state(longRaw, shortRaw)
-rfLong  = useRF and rfLongSig
-rfShort = useRF and rfShortSig
+
+// The ADX gate sits AFTER the alternation state, not before it. Gating the raw
+// conditions instead would let the state flip on a bar whose signal was then
+// suppressed, and the next opposite signal would be silently swallowed - the
+// markers would stop alternating and start disappearing in pairs.
+[diPlusV, diMinusV, adxVal] = ta.dmi(14, 14)
+adxOk = minAdx <= 0 or adxVal >= minAdx
+rfLong  = useRF and rfLongSig  and adxOk
+rfShort = useRF and rfShortSig and adxOk
 
 plot(showBands ? fFilt : na, "Range filter", color.new(#787B86, 20), 2)
 plot(showBands ? fFilt + fRng : na, "Upper band", color.new(#26A69A, 60), 1)

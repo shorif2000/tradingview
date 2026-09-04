@@ -444,6 +444,16 @@ Do not re-attempt without new evidence. Each was tested and failed.
    trades across 2M/3M/5M, measured with a rule verified against the indicator's
    own signals. Fading it also loses. Fourth independent trend-following
    approach to fail on this instrument.
+8. **Filtering the range filter into profitability.** 31 configurations tried
+   across two rounds — ADX, stretch-from-EMA21, pullback limit entries, HTF
+   gating both ways, five exit styles. Best is ADX>=20 + 3R at +0.053R, CI
+   [−0.075, +0.184]. A zero-edge config has a **25% chance** of landing positive
+   in both periods at these sample sizes, so 31 configs predict ~7.7 false
+   winners; three were found. Fewer than noise produces.
+   `docs/FINDINGS_signal_improvement.md`.
+9. **Pullback (limit) entries on a trend-follower.** −0.245R / −0.047R, far worse
+   than chasing. A resting order only fills when price comes back, so you are
+   selected into precisely the signals that immediately reversed.
 
 ---
 
