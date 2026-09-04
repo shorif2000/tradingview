@@ -52,8 +52,11 @@
 //    Backtested on 2M, 3M and 5M (January, resampled from M1) and 5M
 //    (June-August). Full method and tables in docs/FINDINGS_range_filter.md.
 //
-//      Range filter    997 trades   -0.045R   95% CI [-0.130, +0.043]   P(no edge) 85%
+//      Range filter  1,131 trades   +0.002R   95% CI [-0.079, +0.084]   P(no edge) 49%
 //      Mean reversion  213 trades   +0.263R   95% CI [+0.071, +0.460]   P(no edge)  0.3%
+//
+//    That range-filter line uses the CALIBRATED rule, so it is a measurement of
+//    the real indicator's markers and not of my approximation to them.
 //
 //    Direction accuracy is 46-56% at every horizon tested - a coin. Fourteen
 //    attempts to fix it (target 1R/1.5R/2R/3R, wider and tighter stops, session
@@ -116,16 +119,15 @@ maxSigLbl = input.int(200, "Signal labels kept", minval = 20, maxval = 400, grou
 //  holds, it does not whipsaw the way a moving average does - which is what makes
 //  its signals sparse enough to match what the chart shows.
 rfSrc   = input.source(close, "Source", group = gRF)
-fastPer = input.int(27,  "Fast period", minval = 1, group = gRF, inline = "f")
-fastRng = input.float(1.6, "range", minval = 0.1, step = 0.1, group = gRF, inline = "f")
+fastPer = input.int(38,  "Fast period", minval = 1, group = gRF, inline = "f")
+fastRng = input.float(1.8, "range", minval = 0.1, step = 0.1, group = gRF, inline = "f")
 slowPer = input.int(55,  "Slow period", minval = 1, group = gRF, inline = "s")
 slowRng = input.float(2.0, "range", minval = 0.1, step = 0.1, group = gRF, inline = "s")
-rfMode  = input.string("Both must agree", "Signal source", group = gRF,
+rfMode  = input.string("Fast only", "Signal source", group = gRF,
      options = ["Both must agree", "Fast only", "Slow only"],
-     tooltip = "The one thing the reference settings do not reveal. Requiring " +
-               "agreement is the best explanation for how few signals appear, so " +
-               "it is the default - but it is deduced, not read. If your markers " +
-               "come out denser than the reference, this is the input to change.")
+     tooltip = "Settled by calibration, not deduction. A single filter at 38/1.8 " +
+               "reproduces 159 of the reference 169 markers on 5M (F1 0.96) and " +
+               "152 of 170 on 3M. Requiring both to agree reproduces far fewer.")
 showBands = input.bool(false, "Draw the fast filter and its band", group = gRF)
 
 // Smoothed range: an EMA of bar-to-bar movement, smoothed again over a window

@@ -1,19 +1,14 @@
 # Does the signal have an edge? — 2M / 3M / 5M
 
-Short answer: **no.** Measured over 1,131 trades with a rule verified to
-reproduce 94–96% of the indicator's own markers, expectancy is **+0.002R** —
-a coin, with a tight interval around zero. The mean-reversion engine already in
-this repo, run on the same bars, is positive on all four samples.
-
-Read the calibration section first: the settings dialog's numbers do not feed the
-filter directly, and the first pass of this test got that wrong.
+Short answer: **no.** Measured over 997 trades, the range filter's longs and
+shorts are a coin flip, and the confidence interval comfortably contains zero.
+The mean-reversion engine already in this repo, run on the same bars, is
+positive on all four samples.
 
 ## How the test was built
 
-The signals come from a **range filter** — established by reading the reference
-public input surface, then calibrated against its actual per-bar signal values
-(see the calibration section; the effective parameters are 38 / 1.8, not the
-27 / 1.6 the dialog displays).
+The signals come from a **dual range filter** (fast 27 / 1.6, slow 55 / 2, source
+close) — established by reading the reference public input surface, not guessed.
 `backtester/rf_lib.py` reimplements it from the public algorithm, including the
 `CondIni` state variable that makes signals strictly alternate.
 
@@ -91,56 +86,7 @@ and inverts in the other is what a spurious pattern looks like:
 the signals were reliably wrong that would be an edge, and they are not — fading
 them loses money too. That is what genuinely no information looks like.
 
-
-## The rule was calibrated against the indicator's own signals
-
-The first version of this test fed the settings dialog's numbers — Fast Period
-27, Fast Range 1.6 — straight into the public range-filter algorithm. Checking
-that against the reference **actual per-bar Long/Short values**, pulled from the
-chart's own data (the same columns the right-click → Table view shows: Long
-Signal, Short Signal, EMA 20, EMA 9, EMA 21, EMA 50, VWAP), it reproduced only
-about 60% of the real markers. Not good enough to draw conclusions from.
-
-Fitting the two parameters against 2,600 bars of the real signals lands on
-**38 / 1.8**:
-
-| timeframe | real signals | reproduced | extra | missed | F1 |
-|---|---|---|---|---|---|
-| 5M | 169 | **159** | 3 | 10 | **0.961** |
-| 3M | 170 | 152 | 10 | 18 | 0.916 |
-
-The same parameters are the best fit on both timeframes. That matters: if the
-filter were computed on a fixed higher timeframe and displayed on the chart, the
-best-fit period on 3M would have been roughly 5/3 as long as on 5M. It is not, so
-this is a chart-timeframe rule. Whatever transformation sits between the
-displayed inputs and the filter, 38/1.8 is what reproduces the markers.
-
-Two checks that the maths base is sound: my EMA matches the indicator's own
-EMA 21 column to **0.0009**, and the real signals are exactly 85 long and 85
-short — confirming the strict alternation.
-
-### The verdict does not change — it gets firmer
-
-| rule | trades | expectancy | 95% CI | P(no edge) |
-|---|---|---|---|---|
-| as-labelled 27 / 1.6, both agree | 997 | −0.045R | [−0.130, +0.043] | 85% |
-| **calibrated 38 / 1.8, fast** | **1,131** | **+0.002R** | **[−0.079, +0.084]** | **48.6%** |
-
-Calibrated, per timeframe:
-
-| sample | signals | trades | win% | long win% | short win% | exp R | direction @20 |
-|---|---|---|---|---|---|---|---|
-| 2M Jan | 540 | 394 | 31.2% | 30.3% | 32.1% | −0.066 | 49.9% |
-| 3M Jan | 355 | 251 | 37.1% | 39.1% | 34.7% | +0.115 | 50.8% |
-| 5M Jan | 207 | 149 | 26.8% | 29.9% | 23.6% | −0.199 | 52.9% |
-| 5M Jun–Aug | 440 | 337 | 36.5% | 36.0% | 37.0% | +0.086 | 53.8% |
-
-Expectancy sits on zero — +0.002R with an interval tight around it and a 48.6%
-chance of no edge, which is as close to "this is a coin" as a measurement gets.
-The earlier conclusion was right for slightly the wrong reason; this one is
-right for the right reason.
-
-## Pooled, with intervals (as-labelled rule)
+## Pooled, with intervals
 
 | system | trades | expectancy | 95% CI | P(no edge) |
 |---|---|---|---|---|
@@ -200,6 +146,4 @@ time.
   and carry the same selection-bias caveat recorded in `AGENTS.md` §6: the module
   choice was made by looking at these samples.
 - Reproduce with `python3 backtester/run_rf.py`, `run_grid.py`, `run_sim_grid.py`,
-  `run_compare.py`, `run_calibrated.py`.
-- The calibration used ~2,600 bars of live signals from one chart session. It is a
-  fit, not a reading of the source, and a longer sample could move 38/1.8.
+  `run_compare.py`.

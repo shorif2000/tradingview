@@ -440,9 +440,10 @@ Do not re-attempt without new evidence. Each was tested and failed.
    is 57% green at +0.368R — a system can be excellent at 57%.
 6. **Splitting into four separate TradingView scripts.** Hits the studies-per-chart
    cap. Use `scriptMode` instead (I12).
-7. **The dual range filter** (the signal mechanism). −0.045R over
-   997 trades across 2M/3M/5M, well-powered null. Fading it also loses. This is
-   the fourth independent trend-following approach to fail on this instrument.
+7. **The range filter** (the signal mechanism). +0.002R over 1,131
+   trades across 2M/3M/5M, measured with a rule verified against the indicator's
+   own signals. Fading it also loses. Fourth independent trend-following
+   approach to fail on this instrument.
 
 ---
 
@@ -475,8 +476,10 @@ Do not re-attempt without new evidence. Each was tested and failed.
   −0.08R; wiring it would mean restructuring a working script for a feature the data
   says to leave alone.
 - **The indicator has now been measured, and its signals have no edge.** The dual
-  range filter scores −0.045R over 997 trades, CI [−0.130, +0.043], P(no edge)
-  85%; direction accuracy is 46–56% at every horizon. Fourteen variants —
+  range filter scores +0.002R over 1,131 trades, CI [−0.079, +0.084], P(no edge)
+  49%, using a rule CALIBRATED against the indicator's own per-bar signal values
+  (38/1.8 single filter reproduces 94–96% of its markers; the dialog's 27/1.6
+  reproduces only ~60%). Direction accuracy is 48–54% at every horizon. Fourteen variants —
   including inverting every signal — produced nothing positive in both periods.
   Use the script for its map, not its markers. `docs/FINDINGS_range_filter.md`.
 - **Automation** would recover most of the ~85% of edge lost to manual execution.
