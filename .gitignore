@@ -13,3 +13,6 @@ reports/
 # local tooling and the bridge's delete-workaround folder
 .claude/
 _to_delete/
+
+# desktop app delivery folder, not source
+Claude outputs/
