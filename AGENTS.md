@@ -26,13 +26,32 @@ A regime-switching **scalping system for XAUUSD (gold)** on 2m/3m/5m, implemente
 | MT5 expert advisor | `mql5/XAU_Regime_Scalper.mq5` | Hand-maintained port. Live trading / MT5 Strategy Tester. 981 lines, ASCII-only, 89 inputs |
 | Python backtester | `backtester/xau_engine.py` | Hand-maintained, maths matched to Pine `ta.*`. The only place results are measured — long history, walk-forward, sensitivity |
 
+| TradingView indicator | `pine/XAU_5_Liquidity_Engine.pine` | **Hand-maintained, standalone.** Standalone liquidity-level and resting-order tool. Not generated, not part of the measured system |
+
 **The rule that matters most:** `XAU_Regime_Scalper_INDICATOR.pine` is the only
-hand-edited Pine file. Edit a generated file and the edit is silently lost on the
+hand-edited Pine file **in the measured system**. Edit a generated file and the edit is silently lost on the
 next generator run, and that file drifts from the indicator it is supposed to
 match. When you change indicator logic, check whether `mql5/XAU_Regime_Scalper.mq5`
 and `backtester/xau_engine.py` need the equivalent change — **the four are meant to
 agree, and disagreement is treated as a bug until proven otherwise.** That is what
 `validate.py` and the two real-data samples exist for.
+
+### The indicator is a deliberate exception to the no-drift rule
+
+`XAU_5_Liquidity_Engine.pine` carries its own copy of the range-fade and
+liquidity-sweep triggers so its "Mean reversion" engine can run without the
+master. That is duplication, and duplication drifts — the two will disagree the
+first time the master's entry logic changes and nobody remembers to mirror it.
+
+It is accepted here because this indicator's job is to be a standalone
+liquidity tool, not a fifth view of the measured system, and folding it into the
+master would have meant bending the master's UI around a design that is not ours.
+The cost is real though: **if you change entry logic in the master, check the
+standalone by hand.** If the indicator ever becomes something you actually trade,
+promote it into the master as a `scriptMode` and delete the standalone.
+
+Nothing in the indicator has been backtested. Its default engine is trend-following,
+which §7 records as the thing that consistently did not work on this instrument.
 
 ### Operator context (this shapes design decisions)
 
@@ -52,6 +71,7 @@ agree, and disagreement is treated as a bug until proven otherwise.** That is wh
 pine/
   XAU_Regime_Scalper_INDICATOR.pine     master — edit THIS
   XAU_Regime_Scalper_STRATEGY.pine      generated
+  XAU_5_Liquidity_Engine.pine       HAND-MAINTAINED, standalone — see §1
   variants/
     XAU_1_MeanReversion_Scalper.pine    generated — the earner
     XAU_2_Liquidity_Map.pine            generated — context only, zero signals
@@ -451,6 +471,9 @@ Do not re-attempt without new evidence. Each was tested and failed.
 - **The breakout module is Python-only.** Never wired into Pine because it measured
   −0.08R; wiring it would mean restructuring a working script for a feature the data
   says to leave alone.
+- **The indicator is unmeasured.** It has never been through the backtester. Before
+  trading it, run its logic through `xau_engine.py` the way every other module
+  was — the alternating MA-flip is a hypothesis, not a result.
 - **Automation** would recover most of the ~85% of edge lost to manual execution.
   The MQL5 EA exists for this and **has not been run live.**
 

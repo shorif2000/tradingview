@@ -1,0 +1,577 @@
+//@version=6
+// ═══════════════════════════════════════════════════════════════════════════════
+//  XAU LIQUIDITY ENGINE
+// ═══════════════════════════════════════════════════════════════════════════════
+//  An independent implementation of the LOOK and the OBSERVABLE BEHAVIOUR of a
+//  reference signal set. No original source was seen or copied - every
+//  line here was written from the chart image and from first principles.
+//
+//  Where the reference internals cannot be known from a picture, the choice is
+//  exposed as an input rather than guessed at silently. Tune those until the
+//  markers land where the reference land.
+//
+//  WHAT WAS INFERRED, AND HOW CONFIDENT
+//
+//    Signals strictly ALTERNATE long/short/long/short       HIGH
+//      Eight in a row did, with no two of the same side adjacent. That is a
+//      state machine that flips, not an independent per-bar condition. It is the
+//      single most useful thing the reference data gives away, and it is reproduced
+//      exactly here.
+//
+//    Every signal sits at a cross of the orange MA           HIGH
+//      14:00 up, 14:30 down, 14:50 up, 15:30 down, 17:00 up, 18:00 down,
+//      22:09 up, 23:20 down. All eight.
+//
+//    Something suppresses most crosses                       HIGH
+//      Price crossed that MA far more than eight times in nine hours. Between
+//      16:00 and 17:30 it oscillated across it repeatedly for one signal.
+//
+//    The filter is an ATR envelope                           LOW  <- a guess
+//      It fits the visible 1.6 input and it is the usual way this is done, but
+//      nothing in the image proves it. Two alternatives ship alongside it:
+//      plain cross, and a Supertrend flip. Switch with "Flip trigger".
+//
+//    Green = buy-side pools, pink = sell-side pools          HIGH
+//      BSL/REQH labels are green and sit above price; SSL/REQL are pink and sit
+//      below. BSL vs REQH is a touch count - one touch is a plain pool, two or
+//      more are "relatively equal" highs holding more resting orders.
+//
+//    Boxes span the wick range of the level cluster          MEDIUM
+//      The big teal box is ~6.5 wide under a REQH line, too thick to be a
+//      tolerance band and about right for the wicks that built it.
+//
+//  IF YOU WANT A CLOSER MATCH
+//    Open the reference settings and read the numbers off, or read it
+//    with the Data Window open next to a signal. The alternation and the MA
+//    cross are certain; the suppression rule is the only real unknown left.
+//
+//  WORTH SAYING PLAINLY
+//    The indicatorted engine is TREND-FOLLOWING - it buys strength and sells
+//    weakness. Your own testing on this instrument found three separate
+//    trend-following approaches at or below zero expectancy (trend pullback
+//    -0.09R, HTF trend gating +0.485R -> +0.117R, breakout continuation -0.08R)
+//    while mean reversion carried the system. Set "Signal engine" to compare and
+//    watch both fire on the same chart before trusting either.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+indicator("XAU Liquidity Engine", "XAU-LE", overlay = true,
+     max_boxes_count = 500, max_lines_count = 500, max_labels_count = 500)
+
+// ─── input groups ─────────────────────────────────────────────────────────────
+gENG = "① Signal engine"
+gDEN = "② Density"
+gMA  = "③ Moving averages"
+gSIG = "④ Flip trigger  (engine)"
+gMR  = "⑤ Mean reversion  (measured engine)"
+gLIQ = "⑥ Liquidity  ·  BSL / SSL / REQH / REQL"
+gZON = "⑦ Zones"
+gCOL = "⑧ Colours"
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  ① ENGINE  —  which logic draws the Long / Short markers
+// ═══════════════════════════════════════════════════════════════════════════════
+engine = input.string("Replicated", "Signal engine", group = gENG,
+     options = ["Replicated", "Mean reversion", "Compare both"],
+     tooltip = "Replicated  - the alternating MA-flip inferred from the reference data.\n" +
+               "Mean reversion - your measured range-fade + liquidity-sweep logic.\n" +
+               "Compare both - draws each in its own style so you can see where " +
+               "they agree and where they disagree.")
+
+useRep = engine == "Replicated" or engine == "Compare both"
+useMR  = engine == "Mean reversion" or engine == "Compare both"
+
+showLbl   = input.bool(true, "Signal labels",        group = gENG, inline = "mk")
+showBand  = input.bool(true, "Vertical signal band", group = gENG, inline = "mk")
+showPanel = input.bool(true, "Status panel",         group = gENG)
+maxSigLbl = input.int(200, "Signal labels kept on chart", minval = 20, maxval = 400, group = gENG,
+     tooltip = "TradingView hard-caps a script at 500 drawing labels and silently " +
+               "destroys the oldest beyond that - including the BSL/SSL level " +
+               "labels, which then render blank. Keeping our own budget means we " +
+               "choose what gets dropped rather than the engine choosing for us.")
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  ② DENSITY  —  how much is drawn at once
+// ═══════════════════════════════════════════════════════════════════════════════
+//  Every feature carries a rank. Clean draws rank 1, Standard adds rank 2, Full
+//  adds rank 3. Nothing is removed from the LOGIC by lowering this - only from
+//  the screen. Custom obeys each individual switch exactly as you set it.
+density = input.string("Standard", "Density", options = ["Clean", "Standard", "Full", "Custom"],
+     group = gDEN)
+
+denCustom = density == "Custom"
+denRank   = density == "Full" ? 3 : density == "Standard" ? 2 : 1
+
+// userFlag is only consulted in Custom; otherwise rank decides.
+f_show(bool userFlag, int needRank) => denCustom ? userFlag : needRank <= denRank
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  ③ MOVING AVERAGES
+// ═══════════════════════════════════════════════════════════════════════════════
+maSrc    = input.source(close, "Source",   group = gMA)
+maKind   = input.string("EMA", "Type", options = ["EMA", "SMA", "WMA", "HMA"], group = gMA)
+fastLen  = input.int(27,  "Fast  (orange)", minval = 1, group = gMA)
+slowLen  = input.int(55,  "Slow  (purple)", minval = 1, group = gMA)
+trendLen = input.int(365, "Trend (grey)",   minval = 1, group = gMA)
+showFast = input.bool(true,  "Show fast",  group = gMA, inline = "ma")
+showSlow = input.bool(true,  "Show slow",  group = gMA, inline = "ma")
+showTrnd = input.bool(false, "Show trend", group = gMA, inline = "ma")
+atrLen   = input.int(14, "ATR length", minval = 1, group = gMA)
+
+// All four variants are computed every bar on purpose. Calling a ta.* function
+// inside a conditional branch starves its internal series on the bars where the
+// branch is false, and the result silently stops matching the same function run
+// unconditionally - the cost of computing three unused averages is much cheaper
+// than that class of bug.
+f_ma(float src, simple int len, simple string kind) =>
+    e = ta.ema(src, len)
+    s = ta.sma(src, len)
+    w = ta.wma(src, len)
+    h = ta.hma(src, len)
+    kind == "SMA" ? s : kind == "WMA" ? w : kind == "HMA" ? h : e
+
+maFast  = f_ma(maSrc, fastLen,  maKind)
+maSlow  = f_ma(maSrc, slowLen,  maKind)
+maTrend = f_ma(maSrc, trendLen, maKind)
+atr     = ta.atr(atrLen)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  ⑧ COLOURS  (declared early - the drawing code below needs them)
+// ═══════════════════════════════════════════════════════════════════════════════
+colBull  = input.color(#26A69A, "Bull / buy-side",  group = gCOL, inline = "c1")
+colBear  = input.color(#D81B60, "Bear / sell-side", group = gCOL, inline = "c1")
+colFast  = input.color(#FF9800, "Fast MA",  group = gCOL, inline = "c2")
+colSlow  = input.color(#7E57C2, "Slow MA",  group = gCOL, inline = "c2")
+colTrnd  = input.color(#787B86, "Trend MA", group = gCOL, inline = "c2")
+colUsed  = input.color(#9598A1, "Swept / used",  group = gCOL)
+COL_NONE = color.new(color.black, 100)
+
+zoneFill = input.int(88, "Zone transparency", minval = 60, maxval = 98, group = gCOL,
+     tooltip = "Higher = more see-through. Overlapping zones stack, so the newest " +
+               "stays readable only if this is high enough.")
+
+plot(showFast and f_show(showFast, 1) ? maFast  : na, "Fast MA",  colFast, 2)
+plot(showSlow and f_show(showSlow, 2) ? maSlow  : na, "Slow MA",  colSlow, 2)
+plot(showTrnd and f_show(showTrnd, 3) ? maTrend : na, "Trend MA", colTrnd, 1)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  ⑥ LIQUIDITY POOLS  —  BSL / SSL, promoted to REQH / REQL on a second touch
+// ═══════════════════════════════════════════════════════════════════════════════
+pivLen    = input.int(5, "Pivot lookback", minval = 2, maxval = 50, group = gLIQ,
+     tooltip = "A pivot needs this many bars either side, so a level is only known " +
+               "this many bars AFTER it formed. Scrolling back the lines look " +
+               "perfectly placed; live they arrive late. That is unavoidable, not a bug.")
+eqTolATR  = input.float(0.5, "Equal-level tolerance (× ATR)", minval = 0.05, step = 0.05, group = gLIQ)
+eqMin     = input.int(2, "Touches to call it REQH / REQL", minval = 2, group = gLIQ)
+maxPools  = input.int(8, "Max live pools per side", minval = 1, maxval = 20, group = gLIQ)
+poolAge   = input.int(0, "Retire pools older than N bars (0 = never)", minval = 0, group = gLIQ,
+     tooltip = "A pool merges every nearby pivot into itself and ratchets its edges " +
+               "outward. Left unbounded it can walk a long way from where it was " +
+               "born and claim a touch count it never earned at that price.")
+showLiq   = input.bool(true, "Show levels", group = gLIQ)
+keepSwept = input.bool(false, "Keep swept levels on the chart", group = gLIQ)
+
+showZones = input.bool(true,  "Show zone boxes",    group = gZON)
+showMid   = input.bool(true,  "Show 50% midline",   group = gZON)
+zoneMinT  = input.int(1, "Hide zones under N touches", minval = 1, maxval = 5, group = gZON,
+     tooltip = "A pool nothing has come back to is just a candle. Raise this to " +
+               "draw only levels the market has actually defended.")
+
+eLiq  = showLiq   and f_show(showLiq, 1)
+eZone = showZones and f_show(showZones, 2)
+eMid  = showMid   and f_show(showMid, 3)
+
+// A pool is one price area holding resting orders. `touches` counts how many
+// separate pivots landed inside it - one is a plain BSL/SSL, two or more are
+// "relatively equal" highs or lows, which hold materially more stops.
+type Pool
+    float top
+    float bot
+    int   born
+    int   died
+    int   touches
+    bool  isBuy
+    bool  swept
+    box   bx
+    line  ln
+    line  mid
+    label lb
+
+var array<Pool> pools = array.new<Pool>()
+
+f_poolLabel(Pool p) => p.touches >= eqMin ? (p.isBuy ? "REQH" : "REQL") : (p.isBuy ? "BSL" : "SSL")
+
+// Draw or redraw everything belonging to one pool.
+f_paint(Pool p) =>
+    baseCol = p.isBuy ? colBull : colBear
+    lineCol = p.swept ? colUsed : baseCol
+    // A pool nobody has returned to keeps projecting. Once swept it is history,
+    // so it stops extending AND stops at the bar it died on - dragging it to the
+    // right edge would keep implying the level still matters, which is the exact
+    // thing freezing it is meant to prevent.
+    ext  = p.swept ? extend.none : extend.right
+    xEnd = p.swept ? p.died : bar_index
+    vis  = p.touches >= zoneMinT
+    lvl  = p.isBuy ? p.top : p.bot
+
+    if not na(p.ln)
+        line.set_xy1(p.ln, p.born, lvl)
+        line.set_xy2(p.ln, xEnd, lvl)
+        line.set_color(p.ln, eLiq ? lineCol : COL_NONE)
+        line.set_extend(p.ln, ext)
+        line.set_width(p.ln, p.touches >= eqMin ? 2 : 1)
+
+    if not na(p.bx)
+        box.set_top(p.bx, p.top)
+        box.set_bottom(p.bx, p.bot)
+        box.set_right(p.bx, xEnd)
+        box.set_extend(p.bx, ext)
+        box.set_bgcolor(p.bx, vis and eZone ? color.new(lineCol, zoneFill) : COL_NONE)
+        box.set_border_color(p.bx, COL_NONE)
+
+    if not na(p.mid)
+        m = (p.top + p.bot) / 2.0
+        line.set_xy1(p.mid, p.born, m)
+        line.set_xy2(p.mid, xEnd, m)
+        line.set_color(p.mid, vis and eMid ? color.new(lineCol, 40) : COL_NONE)
+        line.set_extend(p.mid, ext)
+
+    if not na(p.lb)
+        label.set_xy(p.lb, p.swept ? p.died : bar_index + 6, lvl)
+        label.set_text(p.lb, f_poolLabel(p) + (p.touches > 1 ? " ×" + str.tostring(p.touches) : ""))
+        label.set_textcolor(p.lb, eLiq ? lineCol : COL_NONE)
+
+f_kill(Pool p) =>
+    line.delete(p.ln)
+    line.delete(p.mid)
+    box.delete(p.bx)
+    label.delete(p.lb)
+
+// ─── build pools from confirmed pivots ────────────────────────────────────────
+ph = ta.pivothigh(high, pivLen, pivLen)
+pl = ta.pivotlow(low,  pivLen, pivLen)
+tol = eqTolATR * atr
+
+// The pivot is confirmed pivLen bars after it formed, so price has already had
+// pivLen bars in which to run through it. Computed unconditionally at global
+// scope because ta.* must be, then used to seed the sweep state at birth - a
+// level that was already taken out must never be born live and start projecting.
+hiLag = ta.highest(high, pivLen)
+loLag = ta.lowest(low,   pivLen)
+
+f_absorb(float lvl, float wickTop, float wickBot, bool isBuy) =>
+    // Try to fold this pivot into an existing pool before creating another one.
+    // Without this, a second high one tick above the first spawns a rival level
+    // instead of confirming the pair, and equal highs can never form.
+    //
+    // Newest-first with an early exit, so a fresh level wins over an ancient one
+    // that happens to sit at a similar price - merging into the oldest match is
+    // how a pool ends up ratcheting far away from where it was born.
+    bool merged = false
+    if array.size(pools) > 0
+        for i = array.size(pools) - 1 to 0
+            Pool p = array.get(pools, i)
+            if p.isBuy == isBuy and not p.swept
+                ref = isBuy ? p.top : p.bot
+                if math.abs(lvl - ref) <= tol
+                    p.touches := p.touches + 1
+                    p.top := math.max(p.top, wickTop)
+                    p.bot := math.min(p.bot, wickBot)
+                    merged := true
+                    break
+    merged
+
+f_newPool(float lvl, float wickTop, float wickBot, bool isBuy, int bornBar, bool bornSwept) =>
+    col = isBuy ? colBull : colBear
+    Pool p = Pool.new(top = wickTop, bot = wickBot, born = bornBar, died = bar_index,
+         touches = 1, isBuy = isBuy, swept = bornSwept,
+         bx  = box.new(bornBar, wickTop, bar_index, wickBot, border_color = COL_NONE,
+                  bgcolor = COL_NONE, extend = extend.right),
+         ln  = line.new(bornBar, lvl, bar_index, lvl, color = col, width = 1,
+                  extend = extend.right),
+         mid = line.new(bornBar, (wickTop + wickBot) / 2.0, bar_index,
+                  (wickTop + wickBot) / 2.0, color = COL_NONE, style = line.style_dotted,
+                  extend = extend.right),
+         lb  = label.new(bar_index + 6, lvl, "", style = label.style_none,
+                  textcolor = col, size = size.small))
+    array.push(pools, p)
+
+    // Cap PER SIDE. A single combined cap looks equivalent and is not: in a
+    // one-sided move only one side keeps producing pivots, so a global trim
+    // evicts the other side's levels one by one until it has none left.
+    int sideN = 0
+    if array.size(pools) > 0
+        for i = 0 to array.size(pools) - 1
+            if array.get(pools, i).isBuy == isBuy
+                sideN := sideN + 1
+    if sideN > maxPools
+        if array.size(pools) > 0
+            for i = 0 to array.size(pools) - 1
+                Pool q = array.get(pools, i)
+                if q.isBuy == isBuy
+                    f_kill(q)
+                    array.remove(pools, i)
+                    break
+
+if not na(ph)
+    absorbedHi = f_absorb(ph, high[pivLen], math.min(low[pivLen], close[pivLen]), true)
+    if not absorbedHi
+        f_newPool(ph, high[pivLen], math.min(low[pivLen], close[pivLen]), true,
+             bar_index - pivLen, hiLag > ph)
+
+if not na(pl)
+    absorbedLo = f_absorb(pl, math.max(high[pivLen], close[pivLen]), low[pivLen], false)
+    if not absorbedLo
+        f_newPool(pl, math.max(high[pivLen], close[pivLen]), low[pivLen], false,
+             bar_index - pivLen, loLag < pl)
+
+// ─── sweep detection ──────────────────────────────────────────────────────────
+// State every bar; cosmetics on the last bar only. Repainting every pool on
+// every historical bar is what froze the tab last time. But EVICTION is state,
+// not cosmetics - deferring it to the last bar leaves dead pools competing for
+// slots in the cap, so live levels get thrown away instead of them.
+bool anySweepLong  = false
+bool anySweepShort = false
+
+if array.size(pools) > 0
+    for i = 0 to array.size(pools) - 1
+        Pool p = array.get(pools, i)
+        if not p.swept
+            if p.isBuy and high > p.top
+                p.swept := true
+                p.died  := bar_index
+                anySweepShort := anySweepShort or close < p.top   // stops run, closed back
+            if not p.isBuy and low < p.bot
+                p.swept := true
+                p.died  := bar_index
+                anySweepLong := anySweepLong or close > p.bot
+
+if array.size(pools) > 0
+    for i = array.size(pools) - 1 to 0
+        Pool p = array.get(pools, i)
+        stale = poolAge > 0 and bar_index - p.born > poolAge
+        if (p.swept and not keepSwept) or stale
+            f_kill(p)
+            array.remove(pools, i)
+
+if barstate.islast
+    if array.size(pools) > 0
+        for i = 0 to array.size(pools) - 1
+            f_paint(array.get(pools, i))
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  ④ REPLICATED ENGINE  —  an alternating flip around the fast MA
+// ═══════════════════════════════════════════════════════════════════════════════
+//  The alternation is the part the reference data proves. The suppression rule is
+//  the part it does not, so all three candidates ship and you can switch.
+trigMode = input.string("MA + ATR envelope", "Flip trigger", group = gSIG,
+     options = ["MA + ATR envelope", "Plain MA cross", "Supertrend flip"])
+envMult  = input.float(1.6, "Envelope (× ATR)", minval = 0.1, step = 0.1, group = gSIG,
+     tooltip = "How far past the fast MA price must close before the state flips. " +
+               "This is the knob that decides how many signals you get. The " +
+               "original showed 1.6 in its status line, which is why that is the default.")
+stFactor = input.float(3.0, "Supertrend factor", minval = 0.5, step = 0.1, group = gSIG)
+stLen    = input.int(10, "Supertrend ATR", minval = 1, group = gSIG)
+coolBars = input.int(5, "Minimum bars between flips", minval = 0, group = gSIG)
+
+[stVal, stDir] = ta.supertrend(stFactor, stLen)
+
+env      = envMult * atr
+envUp    = close > maFast + env
+envDn    = close < maFast - env
+crossUp  = ta.crossover(close,  maFast)
+crossDn  = ta.crossunder(close, maFast)
+// nz() because supertrend's direction is na until its ATR seeds, and na
+// propagates through `and` - without this the first stLen bars produce na
+// signals rather than cleanly false ones.
+stD      = nz(stDir, 0.0)
+stDprev  = nz(stDir[1], 0.0)
+stUp     = stD < 0 and stDprev >= 0
+stDn     = stD > 0 and stDprev <= 0
+
+rawUp = trigMode == "Plain MA cross" ? crossUp : trigMode == "Supertrend flip" ? stUp : envUp
+rawDn = trigMode == "Plain MA cross" ? crossDn : trigMode == "Supertrend flip" ? stDn : envDn
+
+// The envelope trigger is a LEVEL - true on every bar price sits beyond the
+// band - but the cross and Supertrend triggers are one-bar EVENTS. Gating an
+// event directly on the cooldown throws it away for good, and the state can
+// then sit on the wrong side for hundreds of bars. Latching the direction for
+// the length of the cooldown makes all three modes behave the same way, without
+// letting a stale event fire long after the fact.
+var int pending = 0
+var int pendBar = 0
+if rawUp
+    pending := 1
+    pendBar := bar_index
+if rawDn
+    pending := -1
+    pendBar := bar_index
+
+var int repState = 0
+var int lastFlip = -100000
+readyToFlip = bar_index - lastFlip >= coolBars
+pendLive    = pending != 0 and bar_index - pendBar <= math.max(coolBars, 1)
+
+// The state machine runs regardless of which engine is DISPLAYED, so the status
+// panel tells the truth in mean-reversion mode instead of reporting a permanent
+// "flat" that only means nobody asked.
+flipUp = pendLive and pending == 1  and repState != 1  and readyToFlip
+flipDn = pendLive and pending == -1 and repState != -1 and readyToFlip
+
+if flipUp
+    repState := 1
+    lastFlip := bar_index
+    pending  := 0
+if flipDn
+    repState := -1
+    lastFlip := bar_index
+    pending  := 0
+
+repLong  = useRep and flipUp
+repShort = useRep and flipDn
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  ⑤ MEASURED ENGINE  —  range fade + liquidity sweep
+// ═══════════════════════════════════════════════════════════════════════════════
+//  The two modules that actually carried your backtests. Range and sweep are
+//  kept together because together they beat either alone on both expectancy and
+//  drawdown (+0.368R vs +0.321R and +0.314R). Trend and breakout are absent on
+//  purpose - both lost money and dragged the pair down to +0.198R.
+mrRange  = input.bool(true, "Range fade module",     group = gMR, inline = "mod")
+mrSweep  = input.bool(true, "Liquidity sweep module", group = gMR, inline = "mod")
+bbLen    = input.int(20, "Bollinger length", minval = 2, group = gMR)
+bbMult   = input.float(2.0, "Bollinger mult", minval = 0.5, step = 0.1, group = gMR)
+rangeLk  = input.int(75, "Range lookback", minval = 5, group = gMR)
+minConf  = input.int(2, "Confirmations required", minval = 1, maxval = 5, group = gMR,
+     tooltip = "Two is the default and raising it is usually a mistake. Measured " +
+               "on your data, adding more ways to reach the minimum let WEAKER " +
+               "setups through: SMC votes took expectancy from +0.29R to +0.06R.")
+mrSession = input.bool(true, "Restrict to 07:00-20:00 London", group = gMR,
+     tooltip = "Measured to matter a lot - trading around the clock cost 92% of " +
+               "the edge, because the Asian session chops without follow-through.")
+
+basis = ta.sma(close, bbLen)
+dev   = bbMult * ta.stdev(close, bbLen)
+bbUp  = basis + dev
+bbDn  = basis - dev
+hiN   = ta.highest(high, rangeLk)
+loN   = ta.lowest(low,  rangeLk)
+rsi   = ta.rsi(close, 14)
+
+// A failed breakout: price poked outside the band at a range extreme and shut
+// back inside. The failure is the signal, not the poke.
+failUp = high > bbUp and close < bbUp and high >= hiN - 0.25 * atr
+failDn = low  < bbDn and close > bbDn and low  <= loN + 0.25 * atr
+
+barRng     = math.max(high - low, syminfo.mintick)
+bullEngulf = close > open and close[1] < open[1] and close >= open[1] and open <= close[1]
+bearEngulf = close < open and close[1] > open[1] and close <= open[1] and open >= close[1]
+bullPin    = (math.min(open, close) - low) / barRng > 0.5
+bearPin    = (high - math.max(open, close)) / barRng > 0.5
+rsiUp      = ta.crossover(rsi, 50)
+rsiDn      = ta.crossunder(rsi, 50)
+
+confLong  = (failDn ? 1 : 0) + (anySweepLong  ? 1 : 0) + (bullEngulf ? 1 : 0) +
+             (bullPin ? 1 : 0) + (rsiUp ? 1 : 0)
+confShort = (failUp ? 1 : 0) + (anySweepShort ? 1 : 0) + (bearEngulf ? 1 : 0) +
+             (bearPin ? 1 : 0) + (rsiDn ? 1 : 0)
+
+lonHour = hour(time, "Europe/London")
+inSess  = not mrSession or (lonHour >= 7 and lonHour < 20)
+
+trigMRlong  = (mrRange and failDn) or (mrSweep and anySweepLong)
+trigMRshort = (mrRange and failUp) or (mrSweep and anySweepShort)
+
+// A tie is skipped rather than resolved. If the bar argues both ways with equal
+// force, the honest reading is that it argues for nothing.
+tie      = confLong >= minConf and confShort >= minConf
+mrLong   = useMR and inSess and trigMRlong  and confLong  >= minConf and not tie
+mrShort  = useMR and inSess and trigMRshort and confShort >= minConf and not tie
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  MARKERS
+// ═══════════════════════════════════════════════════════════════════════════════
+eLbl  = showLbl  and f_show(showLbl, 1)
+eBand = showBand and f_show(showBand, 2)
+
+// Our own label budget. Without one, a few thousand bars of signals blows past
+// TradingView's 500-label ceiling and the engine starts destroying the OLDEST
+// labels - which are the BSL/SSL level labels. Those pools then render with no
+// text while their `label` id still looks valid, so f_paint writes to a dead
+// object and nothing happens. Capping ourselves means signals age out, not
+// levels.
+var array<label> sigLbls = array.new<label>()
+
+f_pushLbl(label l) =>
+    array.push(sigLbls, l)
+    while array.size(sigLbls) > maxSigLbl
+        label.delete(array.shift(sigLbls))
+
+// Labels, never triangles. A triangle says "something happened here" and leaves
+// you to guess which of the six overlays put it there; a word does not.
+if eLbl and repLong
+    f_pushLbl(label.new(bar_index, low, "Long", style = label.style_label_up,
+         color = colBull, textcolor = color.white, size = size.small,
+         yloc = yloc.belowbar))
+if eLbl and repShort
+    f_pushLbl(label.new(bar_index, high, "Short", style = label.style_label_down,
+         color = colBear, textcolor = color.white, size = size.small,
+         yloc = yloc.abovebar))
+
+// The measured engine gets its own mark so "Compare both" stays readable - same
+// colours, faded, so agreement and disagreement are obvious at a glance.
+if eLbl and mrLong
+    f_pushLbl(label.new(bar_index, low, "MR ▲", style = label.style_label_up,
+         color = color.new(colBull, 35), textcolor = color.white, size = size.tiny,
+         yloc = yloc.belowbar))
+if eLbl and mrShort
+    f_pushLbl(label.new(bar_index, high, "MR ▼", style = label.style_label_down,
+         color = color.new(colBear, 35), textcolor = color.white, size = size.tiny,
+         yloc = yloc.abovebar))
+
+anyLong  = repLong  or mrLong
+anyShort = repShort or mrShort
+bgcolor(eBand and anyLong ? color.new(colBull, 88) : eBand and anyShort ? color.new(colBear, 88) : na,
+     title = "Signal band")
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  STATUS PANEL
+// ═══════════════════════════════════════════════════════════════════════════════
+var table tbl = table.new(position.top_right, 2, 5,
+     bgcolor = color.new(color.black, 20), border_width = 1)
+
+if showPanel and barstate.islast
+    stateTxt = repState == 1 ? "LONG" : repState == -1 ? "SHORT" : "flat"
+    stateCol = repState == 1 ? colBull : repState == -1 ? colBear : colUsed
+    int buyN  = 0
+    int sellN = 0
+    if array.size(pools) > 0
+        for i = 0 to array.size(pools) - 1
+            if array.get(pools, i).isBuy
+                buyN := buyN + 1
+            else
+                sellN := sellN + 1
+    table.cell(tbl, 0, 0, "state",     text_color = color.gray,  text_size = size.tiny)
+    table.cell(tbl, 1, 0, stateTxt,    text_color = stateCol,    text_size = size.tiny)
+    table.cell(tbl, 0, 1, "trigger",   text_color = color.gray,  text_size = size.tiny)
+    table.cell(tbl, 1, 1, trigMode,    text_color = color.white, text_size = size.tiny)
+    table.cell(tbl, 0, 2, "BSL pools", text_color = color.gray,  text_size = size.tiny)
+    table.cell(tbl, 1, 2, str.tostring(buyN),  text_color = colBull, text_size = size.tiny)
+    table.cell(tbl, 0, 3, "SSL pools", text_color = color.gray,  text_size = size.tiny)
+    table.cell(tbl, 1, 3, str.tostring(sellN), text_color = colBear, text_size = size.tiny)
+    table.cell(tbl, 0, 4, "ATR",       text_color = color.gray,  text_size = size.tiny)
+    table.cell(tbl, 1, 4, str.tostring(atr, "#.##"), text_color = color.white, text_size = size.tiny)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  ALERTS
+// ═══════════════════════════════════════════════════════════════════════════════
+alertcondition(repLong,  "Replicated LONG",  "XAU-LE long flip")
+alertcondition(repShort, "Replicated SHORT", "XAU-LE short flip")
+alertcondition(mrLong,   "Mean-reversion LONG",  "XAU-LE mean-reversion long")
+alertcondition(mrShort,  "Mean-reversion SHORT", "XAU-LE mean-reversion short")
+
+if anyLong
+    alert("XAU-LE LONG " + syminfo.ticker + " @ " + str.tostring(close, format.mintick) +
+         "  ATR " + str.tostring(atr, "#.##"), alert.freq_once_per_bar_close)
+if anyShort
+    alert("XAU-LE SHORT " + syminfo.ticker + " @ " + str.tostring(close, format.mintick) +
+         "  ATR " + str.tostring(atr, "#.##"), alert.freq_once_per_bar_close)
