@@ -48,12 +48,33 @@
 //    why so few signals appear, so it is the default - but it is a deduction,
 //    not a reading. "Signal source" switches it.
 //
-//  WORTH SAYING PLAINLY
-//    A range filter is a TREND-FOLLOWING device: it buys strength and sells
-//    weakness. Your own testing found three separate trend-following approaches
-//    on this instrument at or below zero expectancy. Nothing here is backtested.
-//    "Signal engine" can run your measured mean-reversion logic instead, or both
-//    at once, so you can watch them disagree before deciding which to believe.
+//  NOW MEASURED — AND THE SIGNALS HAVE NO EDGE
+//    Backtested on 2M, 3M and 5M (January, resampled from M1) and 5M
+//    (June-August). Full method and tables in docs/FINDINGS_range_filter.md.
+//
+//      Range filter    997 trades   -0.045R   95% CI [-0.130, +0.043]   P(no edge) 85%
+//      Mean reversion  213 trades   +0.263R   95% CI [+0.071, +0.460]   P(no edge)  0.3%
+//
+//    Direction accuracy is 46-56% at every horizon tested - a coin. Fourteen
+//    attempts to fix it (target 1R/1.5R/2R/3R, wider and tighter stops, session
+//    filter, EMA200 alignment, band filter, fast-only, and INVERTING every
+//    signal) produced not one configuration positive in both periods. Fading the
+//    signals loses money too, which is what genuinely no information looks like.
+//
+//    997 trades is a well-powered null, not a shortage of data.
+//
+//    So: keep this script for its MAP - the liquidity levels, the gaps and CE,
+//    EMA 21 and VWAP are useful furniture. For entries set "Signal engine" to
+//    Mean reversion, and prefer 5M (+0.497R), then 3M (+0.375R). 2M measured
+//    +0.135R on one sample of 47 trades and is not established.
+//
+//    Two incidental findings, in case you tune this yourself:
+//      "Both must agree" is nearly identical to "slow only" - the slow filter is
+//      the binding constraint, so the question the settings dialog could not
+//      answer turns out not to matter much.
+//      A "price beyond the band" rule is a NO-OP by construction: when the
+//      filter moves it moves to exactly price - range, so the comparison is an
+//      equality and never a strict inequality.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 indicator("XAU Liquidity Engine", "XAU-LE", overlay = true,
@@ -71,8 +92,11 @@ gMR  = "⑥ Mean reversion  ·  your measured engine"
 // ═══════════════════════════════════════════════════════════════════════════════
 engine = input.string("Range filter", "Signal engine", group = gENG,
      options = ["Range filter", "Mean reversion", "Compare both"],
-     tooltip = "Range filter - the reference mechanism, rebuilt.\n" +
-               "Mean reversion - your measured range-fade + sweep logic.\n" +
+     tooltip = "Range filter - the reference mechanism, rebuilt. Measured at " +
+               "-0.045R over 997 trades: no edge. Kept because replicating it " +
+               "was the point, not because it works.\n" +
+               "Mean reversion - +0.263R over 213 trades, P(no edge) 0.3%. This " +
+               "is the one to trade.\n" +
                "Compare both - each in its own style, on one chart.")
 useRF = engine == "Range filter"  or engine == "Compare both"
 useMR = engine == "Mean reversion" or engine == "Compare both"

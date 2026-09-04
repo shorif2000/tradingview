@@ -440,6 +440,9 @@ Do not re-attempt without new evidence. Each was tested and failed.
    is 57% green at +0.368R — a system can be excellent at 57%.
 6. **Splitting into four separate TradingView scripts.** Hits the studies-per-chart
    cap. Use `scriptMode` instead (I12).
+7. **The dual range filter** (the signal mechanism). −0.045R over
+   997 trades across 2M/3M/5M, well-powered null. Fading it also loses. This is
+   the fourth independent trend-following approach to fail on this instrument.
 
 ---
 
@@ -471,9 +474,11 @@ Do not re-attempt without new evidence. Each was tested and failed.
 - **The breakout module is Python-only.** Never wired into Pine because it measured
   −0.08R; wiring it would mean restructuring a working script for a feature the data
   says to leave alone.
-- **The indicator is unmeasured.** It has never been through the backtester. Before
-  trading it, run its logic through `xau_engine.py` the way every other module
-  was — the alternating MA-flip is a hypothesis, not a result.
+- **The indicator has now been measured, and its signals have no edge.** The dual
+  range filter scores −0.045R over 997 trades, CI [−0.130, +0.043], P(no edge)
+  85%; direction accuracy is 46–56% at every horizon. Fourteen variants —
+  including inverting every signal — produced nothing positive in both periods.
+  Use the script for its map, not its markers. `docs/FINDINGS_range_filter.md`.
 - **Automation** would recover most of the ~85% of edge lost to manual execution.
   The MQL5 EA exists for this and **has not been run live.**
 
