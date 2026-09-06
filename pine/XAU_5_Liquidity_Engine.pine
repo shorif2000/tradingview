@@ -337,13 +337,48 @@ var array<float> pvLo = array.new<float>()
 PV_KEEP = 40
 
 // The higher-timeframe objective: the extreme of the last planSpan CLOSED bars
-// of planHTF. [1] and lookahead_off together are what stop this from reading a
-// bar that has not finished forming - without both, every historical target on
-// the chart would be one the live chart could never have known.
-htfHi = request.security(syminfo.tickerid, planHTF, ta.highest(high, planSpan)[1],
-     lookahead = barmerge.lookahead_off)
-htfLo = request.security(syminfo.tickerid, planHTF, ta.lowest(low, planSpan)[1],
-     lookahead = barmerge.lookahead_off)
+// of planHTF.
+//
+// Built by hand rather than with request.security, which costs a data
+// connection per call and would have cost two here. time(planHTF) changes
+// exactly on the higher timeframe's bar boundaries and needs no request at all,
+// so the buckets can be accumulated locally for free.
+//
+// It is also the more faithful version. request.security(...)[1] gives a
+// ROLLING window of higher-timeframe bars; the measurement this is built from
+// used calendar-aligned buckets with the still-forming one excluded, which is
+// what this does. A bucket is only pushed once the next one starts, so the
+// current hour can never contribute to its own target - the look-ahead that
+// [1] and lookahead_off exist to prevent is prevented structurally instead.
+var array<float> bkHi = array.new<float>()
+var array<float> bkLo = array.new<float>()
+var float curHi = na
+var float curLo = na
+BK_KEEP = 60
+
+if ta.change(time(planHTF)) != 0 and not na(curHi)
+    array.push(bkHi, curHi)
+    array.push(bkLo, curLo)
+    if array.size(bkHi) > BK_KEEP
+        array.shift(bkHi)
+        array.shift(bkLo)
+    curHi := high
+    curLo := low
+else
+    curHi := na(curHi) ? high : math.max(curHi, high)
+    curLo := na(curLo) ? low  : math.min(curLo, low)
+
+f_lastExtreme(array<float> a, int span, bool wantMax) =>
+    float m = na
+    int n = array.size(a)
+    if n > 0
+        for i = math.max(0, n - span) to n - 1
+            v = array.get(a, i)
+            m := na(m) ? v : (wantMax ? math.max(m, v) : math.min(m, v))
+    m
+
+htfHi = f_lastExtreme(bkHi, planSpan, true)
+htfLo = f_lastExtreme(bkLo, planSpan, false)
 
 // Nearest swing beyond the level - the market's own invalidation point, rather
 // than a multiple of ATR chosen to make a backtest look good.
@@ -355,16 +390,21 @@ htfLo = request.security(syminfo.tickerid, planHTF, ta.lowest(low, planSpan)[1],
 //
 // For that sell, the stop is the LOWEST swing high still above the level:
 // anything higher is further away than the idea requires.
+// Branched rather than selecting the array with a ternary: Pine will happily
+// compile `a ? arrX : arrY` and then behave unpredictably about which reference
+// it kept, and a silently wrong stop is the worst failure mode here.
 f_structStop(float lvl, bool isHigh) =>
     float best = na
-    arr = isHigh ? pvHi : pvLo
-    if array.size(arr) > 0
-        for i = 0 to array.size(arr) - 1
-            v = array.get(arr, i)
-            if isHigh
+    if isHigh
+        if array.size(pvHi) > 0
+            for i = 0 to array.size(pvHi) - 1
+                v = array.get(pvHi, i)
                 if v > lvl and (na(best) or v < best)
                     best := v
-            else
+    else
+        if array.size(pvLo) > 0
+            for i = 0 to array.size(pvLo) - 1
+                v = array.get(pvLo, i)
                 if v < lvl and (na(best) or v > best)
                     best := v
     best
