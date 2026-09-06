@@ -451,6 +451,19 @@ Do not re-attempt without new evidence. Each was tested and failed.
    in both periods at these sample sizes, so 31 configs predict ~7.7 false
    winners; three were found. Fewer than noise produces.
    `docs/FINDINGS_signal_improvement.md`.
+10. **Candle Range Theory as taught** (fade the sweep back to the opposite end
+    of the range). Negative at all six timeframes tested — 15M, 1H, 4H, Daily,
+    Weekly, Monthly. On 4H over 3.7 years and 1,524 setups it is −0.099R and
+    negative in every individual year. Win rates of 44–49% look fine; the median
+    reward is ~1.0R, and one 69%-win variant still lost money at 0.4R median.
+    `docs/FINDINGS_crt.md`.
+11. **CRT inverse (continuation) as a durable edge.** Looked excellent on six
+    months of 4H (+0.262R, all quarters positive, replicated on the H4 export).
+    Over 3.7 years it is +0.052R, CI [−0.021, +0.121], and 2023 is negative. The
+    short sample sat entirely inside 2026, the one strongly positive year. A
+    regime artifact, and a reminder that N setups from one market condition is
+    not N independent observations.
+
 9. **Pullback (limit) entries on a trend-follower.** −0.245R / −0.047R, far worse
    than chasing. A resting order only fills when price comes back, so you are
    selected into precisely the signals that immediately reversed.
@@ -461,6 +474,7 @@ Do not re-attempt without new evidence. Each was tested and failed.
 
 | Constraint | Detail |
 |---|---|
+| TradingView history | Shrinking bar spacing does NOT fetch older bars — it only re-renders what is loaded. `model.timeScale().scrollToFirstBar()` requests history: 782 → 5,679 bars on 4H. That call is the difference between a six-month sample and 3.7 years, and in the CRT test it was the difference between a false positive and the truth. |
 | Market-data hosts | Blocked from the build sandbox (403/502). Data must be supplied as CSV exports |
 | `api.github.com` | 502 from the sandbox |
 | `GITHUB_TOKEN` / `GH_TOKEN` in sandbox | Literal placeholder `proxy-injected` — not a credential. **Never solicit or accept a real token** |
