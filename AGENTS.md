@@ -218,6 +218,8 @@ Do not change these without re-measuring and updating the numbers in `README.md`
 | I16 | `dataset("m1")` loads with `resample_5m=False`, and `_check_step` asserts the modal bar spacing | The M1 file resampled to 5m is just a second copy of the M5 file, which **silently disables I13** while still producing plausible-looking results |
 | I17 | Derived files (`*.clean.csv`, pickles, reports) go to `.cache/` and `reports/` | `_preclean` used to write beside the source, leaving junk inside `data/` |
 | I18 | `Config.tf_minutes` set when running a non-5m chart | Bar-count settings rescale to preserve wall-clock span and ATR sizing converts via `sqrt(time)`; without it, other-timeframe backtests run distorted lookback windows |
+| I19 | A limit-order fill resolves from the **next** bar, never its own | The order fills part way through the candle, so the rest of that candle's range is unknowable at bar resolution — awarding it lets a wide bar hand the test whichever of SL/TP suits. Market-on-open entries are exempt: the fill *is* that bar's open |
+| I20 | Every stop has a **minimum placeable distance** (0.50 × ATR) before R is computed | A structural stop can land cents from the fill; risk divides to near zero and R multiples explode. This alone turned +0.02R into a fake +0.972R. Check `t.rr.max()` — a three-figure R:R means this was broken |
 
 ---
 
@@ -428,6 +430,37 @@ exactly what a spurious pattern does. None of them feed the roadmap script.
   trustworthy one and the post-selection one as a hypothesis for new data.
 - **The bar for trusting any change** is "opposite market direction, same sign of
   result". Justify a change against **both** samples in `data/`, never one.
+
+### Anticipating a level beats confirming it — the one plateau found
+
+The strongest result in the project, and the only one whose *neighbourhood* also
+works. Rest a limit **0.25 × ATR beyond** an untouched swing, stop at the last
+swing beyond it (floored at **0.50 × ATR**, skip beyond 2.5 × ATR), target the
+extreme of the last 6 closed 1H bars, skip if that target is more than **6R**
+away. Against the confirmation entry on identical levels, stops and targets:
+
+| | CONFIRM | ANTICIPATE |
+|---|---|---|
+| Expectancy | +0.222R | **+0.523R** |
+| 95% CI / P(no edge) | [−0.11,+0.58] / 10.2% | **[+0.13,+0.93] / 0.3%** |
+| minus 3 best trades | +0.082R | **+0.392R** |
+| Median stop / time in trade | $6.25 / 60 min | **$5.22 / 30 min** |
+| Max DD at 0.01 lots | −£85.63 | **−£39.54** |
+
+27-cell neighbourhood grid: **25/27 positive in both periods (93%)** against the
+~25% noise baseline, median +0.253R. Breaks at `swingLen` 7 (+0.114R) and goes
+negative at swingLen 7 with a 4H target. Long/short balanced (+0.473 / +0.576).
+`docs/FINDINGS_anticipation.md`, `backtester/predict8.py`.
+
+**Two artifacts were removed to get here, both of which looked better:**
+- *Intrabar look-ahead* — a limit fills mid-candle, so resolution must start on
+  the NEXT bar. The tell was "median time in trade 0 min". Fixing it dropped a
+  robustness grid from 72% to 16%, i.e. below noise.
+- *Division by near-zero* — a structural stop landing cents from the fill scored
+  small wins at 1,424R and 6,085R, producing a fake **+0.972R** (median outcome
+  −1.00R; 70% of gross profit from the best 5%; −0.240R trimmed). The stop floor
+  is what makes it honest: it took +0.972R to +0.02R, and the +0.523R above is
+  the capped-target version measured *with* the floor in place.
 
 ---
 
