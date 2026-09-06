@@ -103,6 +103,7 @@ gLIQ = "③ Liquidity levels  ·  BSL / SSL / REQH / REQL"
 gFVG = "④ Fair value gaps  ·  with CE"
 gMA  = "⑤ Moving averages & VWAP"
 gMR  = "⑥ Mean reversion  ·  your measured engine"
+gSIG = "⑦ Trade plan on each signal  ·  entry / SL / TP"
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  ① ENGINE
@@ -763,6 +764,128 @@ anyLong  = rfLong  or mrLong
 anyShort = rfShort or mrShort
 bgcolor(showBand and anyLong ? color.new(#00E676, 88) :
      showBand and anyShort ? color.new(#F23645, 88) : na, title = "Signal band")
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  ⑦ TRADE PLAN ON EACH SIGNAL
+// ═══════════════════════════════════════════════════════════════════════════════
+//  A marker that says "Long" and nothing else is not a trade. This draws the
+//  three prices that make it one, on the bar you can actually act on.
+//
+//  TIMING. The plan is drawn on the bar AFTER the signal, not on the signal bar
+//  itself, because the measured rule enters at the next bar's OPEN - and on the
+//  signal bar that open does not exist yet. Anchoring it to the signal candle's
+//  close would draw an entry nobody could be filled at, and would flatter every
+//  number in this repo by one candle's range.
+//
+//  THE STOP is placed beyond the SIGNAL candle's extreme, which is the level the
+//  setup is wrong below, plus a buffer. Then two guards, both load-bearing:
+//  a stop inside one candle's normal range is noise rather than risk, and a stop
+//  wider than 2 x ATR turns a 2R target into a move gold does not routinely make
+//  - those signals are skipped outright rather than taken small.
+//
+//  DO NOT move the stop to break-even. Measured on this data it took expectancy
+//  from +0.291R to +0.175R: gold dips back through the entry before it goes.
+showSigPlan = input.bool(true, "Draw entry / SL / TP on each signal", group = gSIG,
+     tooltip = "Drawn one bar after the signal, because the entry is the NEXT " +
+               "bar's open and that price does not exist while the signal bar " +
+               "is still forming.")
+sigSlBuf  = input.float(0.35, "Stop beyond signal candle (× ATR)", minval = 0, step = 0.05, group = gSIG)
+sigSlMin  = input.float(0.80, "Minimum stop (× ATR)", minval = 0.1, step = 0.05, group = gSIG,
+     tooltip = "A stop inside one candle's normal range is noise, not risk.")
+sigSlMax  = input.float(2.00, "Skip signal if stop exceeds (× ATR)", minval = 0.5, step = 0.1, group = gSIG,
+     tooltip = "Skipped signals are marked rather than hidden, so you can see " +
+               "that the rule fired and why it was declined.")
+sigTp1R   = input.float(1.0, "TP1 (× risk)", minval = 0.5, step = 0.5, group = gSIG,
+     tooltip = "Take half off here. The remainder trails behind swing lows.")
+sigTp2R   = input.float(2.0, "TP2 (× risk)", minval = 0.5, step = 0.5, group = gSIG)
+sigSpread = input.float(0.20, "Spread + slippage ($)", minval = 0, step = 0.05, group = gSIG,
+     tooltip = "Charged against the entry so the drawn price is the one you " +
+               "would actually get, not the mid.")
+sigPlanLen = input.int(24, "Plan length (bars)", minval = 4, maxval = 200, group = gSIG)
+maxSigPlan = input.int(8, "Signal plans kept", minval = 1, maxval = 30, group = gSIG,
+     tooltip = "Each plan costs 4 lines and 1 label. The chart budget is shared " +
+               "with the liquidity levels, so this is deliberately small.")
+colTp     = input.color(#089981, "TP", group = gSIG, inline = "pc")
+colSl     = input.color(#F23645, "SL", group = gSIG, inline = "pc")
+
+type SigPlan
+    line  lEnt
+    line  lSl
+    line  lTp1
+    line  lTp2
+    label lb
+
+var array<SigPlan> sigPlans = array.new<SigPlan>()
+
+f_pushPlan(SigPlan P) =>
+    array.push(sigPlans, P)
+    while array.size(sigPlans) > maxSigPlan
+        SigPlan old = array.shift(sigPlans)
+        line.delete(old.lEnt)
+        line.delete(old.lSl)
+        line.delete(old.lTp1)
+        line.delete(old.lTp2)
+        label.delete(old.lb)
+
+// Carried one bar so the entry can use the next open. Cleared every bar, so a
+// signal that never gets a following bar simply never draws.
+var bool  pLong = false
+var bool  pShort = false
+var float pHi = na
+var float pLo = na
+var float pAtr = na
+var bool  pIsMR = false
+
+if showSigPlan and (pLong or pShort)
+    isLong = pLong
+    ent    = isLong ? open + sigSpread : open - sigSpread
+    raw    = isLong ? pLo - sigSlBuf * pAtr : pHi + sigSlBuf * pAtr
+    risk0  = math.abs(ent - raw)
+    // Widen a too-tight stop; a too-wide one is declined, not shrunk.
+    risk   = math.max(risk0, sigSlMin * pAtr)
+    tooWide = risk > sigSlMax * pAtr
+    sl     = isLong ? ent - risk : ent + risk
+    tp1    = isLong ? ent + sigTp1R * risk : ent - sigTp1R * risk
+    tp2    = isLong ? ent + sigTp2R * risk : ent - sigTp2R * risk
+    x1     = bar_index
+    x2     = bar_index + sigPlanLen
+    base   = isLong ? #00E676 : #F23645
+    tag    = (pIsMR ? "MR " : "") + (isLong ? "LONG" : "SHORT")
+    if tooWide
+        f_pushPlan(SigPlan.new(
+             lEnt = line.new(x1, ent, x1, ent, color = COL_NONE),
+             lSl  = line.new(x1, ent, x1, ent, color = COL_NONE),
+             lTp1 = line.new(x1, ent, x1, ent, color = COL_NONE),
+             lTp2 = line.new(x1, ent, x1, ent, color = COL_NONE),
+             lb   = label.new(x1, ent, "SKIP " + tag + " — stop " +
+                  str.tostring(risk, "#.##") + " > " +
+                  str.tostring(sigSlMax, "#.#") + "×ATR",
+                  style = label.style_label_left, color = color.new(#787B86, 20),
+                  textcolor = color.white, size = size.tiny)))
+    else
+        f_pushPlan(SigPlan.new(
+             lEnt = line.new(x1, ent, x2, ent, color = base, width = 2),
+             lSl  = line.new(x1, sl, x2, sl, color = colSl, width = 1,
+                  style = line.style_dashed),
+             lTp1 = line.new(x1, tp1, x2, tp1, color = color.new(colTp, 40),
+                  width = 1, style = line.style_dotted),
+             lTp2 = line.new(x1, tp2, x2, tp2, color = colTp, width = 1,
+                  style = line.style_dashed),
+             lb   = label.new(x2, ent,
+                  tag + "  entry " + str.tostring(ent, format.mintick) +
+                  "\nSL " + str.tostring(sl, format.mintick) +
+                  "  (risk $" + str.tostring(risk, "#.##") + ")" +
+                  "\nTP1 " + str.tostring(tp1, format.mintick) + "  half off" +
+                  "\nTP2 " + str.tostring(tp2, format.mintick),
+                  style = label.style_label_left, color = color.new(base, 15),
+                  textcolor = isLong ? #363A45 : color.white, size = size.tiny)))
+
+pLong  := anyLong
+pShort := anyShort
+pHi    := high
+pLo    := low
+pAtr   := atr
+pIsMR  := mrLong or mrShort
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  ALERTS

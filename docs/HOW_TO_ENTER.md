@@ -1,5 +1,20 @@
 # How to enter, where the stop goes, where the target goes
 
+> **The indicator now draws this for you.** Every signal gets an entry line, a
+> stop line and two target lines, labelled with the prices and the dollar risk —
+> see *Trade plan on each signal* in the settings. The rules below are what it
+> draws, so read them to know what you are looking at, and so you can tell when
+> it is **declining** a signal rather than missing one.
+>
+> Two things about the drawing that are deliberate rather than incidental:
+>
+> - **It appears one bar after the signal**, because the entry is the next bar's
+>   open and that price does not exist while the signal candle is still forming.
+>   Anything drawn sooner would be a fill nobody could have got.
+> - **A signal whose stop would exceed 2 × ATR is drawn as a grey `SKIP`**, not
+>   as a trade and not silently hidden. You should be able to see that the rule
+>   fired and that it was declined, and why.
+
 Two real setups from the last two weeks, with exact prices you can pull up on
 your own chart. Read the caveat at the bottom before you size anything.
 
