@@ -81,7 +81,21 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 
 indicator("XAU Liquidity Engine", "XAU-LE", overlay = true,
-     max_boxes_count = 500, max_lines_count = 500, max_labels_count = 500)
+     max_boxes_count = 500, max_lines_count = 500, max_labels_count = 500,
+     max_bars_back = 5000)
+
+// Pine addresses a drawing's bar-index coordinate as an offset from the current
+// bar, and that offset must sit inside the historical buffer. A liquidity level
+// can outlive that buffer: the per-side FIFO cap only evicts when a NEW level is
+// pushed, and f_absorb merges a nearby swing into an existing level WITHOUT
+// refreshing its birth bar. So in a tight range where every swing gets absorbed,
+// nothing is pushed, nothing is evicted, and one level ages without limit until
+// its birth bar falls off the end - which is the runtime error
+//   "The requested historical offset (356) is beyond the historical buffer's
+//    limit (355)"
+// Raising the buffer to 5000 buys room; clamping every backward reference to
+// MAX_BACK below guarantees it can never happen again on a longer chart.
+MAX_BACK = 5000
 
 gENG = "① Signal engine"
 gRF  = "② Range filter  ·  the signal source"
@@ -119,9 +133,9 @@ maxSigLbl = input.int(200, "Signal labels kept", minval = 20, maxval = 400, grou
 //  holds, it does not whipsaw the way a moving average does - which is what makes
 //  its signals sparse enough to match what the chart shows.
 rfSrc   = input.source(close, "Source", group = gRF)
-fastPer = input.int(38,  "Fast period", minval = 1, group = gRF, inline = "f")
+fastPer = input.int(38,  "Fast period", minval = 1, maxval = 500, group = gRF, inline = "f")
 fastRng = input.float(1.8, "range", minval = 0.1, step = 0.1, group = gRF, inline = "f")
-slowPer = input.int(55,  "Slow period", minval = 1, group = gRF, inline = "s")
+slowPer = input.int(55,  "Slow period", minval = 1, maxval = 500, group = gRF, inline = "s")
 slowRng = input.float(2.0, "range", minval = 0.1, step = 0.1, group = gRF, inline = "s")
 rfMode  = input.string("Fast only", "Signal source", group = gRF,
      options = ["Both must agree", "Fast only", "Slow only"],
@@ -220,7 +234,7 @@ colE20  = input.color(#2962FF, "", group = gMA, inline = "e1")
 colE21  = input.color(#FF9800, "", group = gMA, inline = "e2")
 colE50  = input.color(#F23645, "", group = gMA, inline = "e2")
 colVwap = input.color(#9C27B0, "", group = gMA)
-atrLen  = input.int(14, "ATR length (sizing for labels & zones)", minval = 1, group = gMA)
+atrLen  = input.int(14, "ATR length (sizing for labels & zones)", minval = 1, maxval = 200, group = gMA)
 
 ema9  = ta.ema(close, 9)
 ema20 = ta.ema(close, 20)
@@ -290,14 +304,21 @@ f_drawLevel(Level L) =>
     // A level nobody has taken keeps projecting. Once traded through it freezes
     // at the bar it died on - stretching it to the right edge would keep saying
     // the level still matters, which is precisely what taking it out disproved.
-    xEnd = L.traded ? L.died : bar_index
     ext  = L.traded ? extend.none : extend.right
-    line.set_xy1(L.ln, L.born, L.price)
+    // Never address a bar older than the buffer allows. For a live level the
+    // line carries extend.right, so a clamped left anchor is purely cosmetic.
+    // A traded level uses extend.none, so if BOTH ends fell past the clamp it
+    // would collapse to zero length - unreachable unless "keep traded levels"
+    // is on AND the level is 4900+ bars old, but worth not pretending otherwise.
+    oldest = bar_index - (MAX_BACK - 100)
+    xStart = math.max(L.born, oldest)
+    xEnd   = math.max(L.traded ? L.died : bar_index, oldest)
+    line.set_xy1(L.ln, xStart, L.price)
     line.set_xy2(L.ln, xEnd, L.price)
     line.set_color(L.ln, showLiq ? col : COL_NONE)
     line.set_extend(L.ln, ext)
     line.set_width(L.ln, (L.isMajor or L.touches >= 2) ? liqWidth : math.max(liqWidth - 1, 1))
-    label.set_xy(L.lb, L.traded ? L.died : bar_index + 6, L.price)
+    label.set_xy(L.lb, L.traded ? xEnd : bar_index + 6, L.price)
     label.set_text(L.lb, f_levelText(L) + (L.touches > 1 ? " ×" + str.tostring(L.touches) : ""))
     label.set_textcolor(L.lb, showLiq ? col : COL_NONE)
 
@@ -485,9 +506,9 @@ if array.size(gaps) > 0
 //  Range fade + liquidity sweep: the pair that measured +0.368R at 57% green,
 //  against -0.093R for trend pullback and -0.076R for breakout. Present so the
 //  two philosophies can be compared on one chart rather than argued about.
-bbLen   = input.int(20, "Bollinger length", minval = 2, group = gMR)
+bbLen   = input.int(20, "Bollinger length", minval = 2, maxval = 200, group = gMR)
 bbMult  = input.float(2.0, "Bollinger mult", minval = 0.5, step = 0.1, group = gMR)
-rangeLk = input.int(75, "Range lookback", minval = 5, group = gMR)
+rangeLk = input.int(75, "Range lookback", minval = 5, maxval = 500, group = gMR)
 minConf = input.int(2, "Confirmations required", minval = 1, maxval = 5, group = gMR,
      tooltip = "Two, and raising it is usually a mistake: adding more routes to " +
                "the minimum let WEAKER setups through, taking expectancy from " +
