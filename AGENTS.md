@@ -154,6 +154,14 @@ re-running the engine per week. Re-running per slice would throw away the ~215-b
 warm-up (EMA200 + BB-width percentile) and silently change signals near every
 boundary, making the weeks incomparable.
 
+### Multi-timeframe entries — the one mechanic that replicated
+
+Use the lower timeframe for the entry PRICE, never for the stop DISTANCE. Keeping
+the stop at HTF structure while refining the entry on 5M roughly **doubles median
+R:R (1.90 → 3.72) at an equal or better win rate (38.6% → 43.7%)**, in both test
+periods. Moving the stop down to LTF structure destroys it (see invariant list
+item 12). This is mechanics, not edge — it does not rescue a setup that has none.
+
 ### Datasets
 
 `paths.dataset(name)` loads from `data/` and caches the parsed frame under
@@ -451,6 +459,14 @@ Do not re-attempt without new evidence. Each was tested and failed.
    in both periods at these sample sizes, so 31 configs predict ~7.7 false
    winners; three were found. Fewer than noise produces.
    `docs/FINDINGS_signal_improvement.md`.
+12. **A lower-timeframe stop on a higher-timeframe idea.** The standard
+    multi-timeframe recipe — 1H/4H/Daily for direction, 5M for a tight entry and
+    a tight stop — gives exactly the R:R it promises (7x on 1H, 13.6x on 4H, 24x
+    on Daily) and a 12.7% win rate, with the median trade dead in 3 bars. Gold's
+    5M ATR is ~$4.80, so a stop beyond a 5M swing sits inside one bar's normal
+    range: the trade is killed by noise before the HTF thesis can act. Replicated
+    on two periods. `docs/FINDINGS_multitimeframe.md`.
+
 10. **Candle Range Theory as taught** (fade the sweep back to the opposite end
     of the range). Negative at all six timeframes tested — 15M, 1H, 4H, Daily,
     Weekly, Monthly. On 4H over 3.7 years and 1,524 setups it is −0.099R and
@@ -474,6 +490,7 @@ Do not re-attempt without new evidence. Each was tested and failed.
 
 | Constraint | Detail |
 |---|---|
+| TradingView 5M ceiling | ~4 weeks (5,526 bars) whatever you scroll. That yields ~120 1H setups, ~30 4H, ~11 Daily, 0 Monthly — so a Daily or Monthly setup with 5M entries CANNOT be validated from TradingView data. Needs a multi-year M5/M1 export from MT5. |
 | TradingView history | Shrinking bar spacing does NOT fetch older bars — it only re-renders what is loaded. `model.timeScale().scrollToFirstBar()` requests history: 782 → 5,679 bars on 4H. That call is the difference between a six-month sample and 3.7 years, and in the CRT test it was the difference between a false positive and the truth. |
 | Market-data hosts | Blocked from the build sandbox (403/502). Data must be supplied as CSV exports |
 | `api.github.com` | 502 from the sandbox |
