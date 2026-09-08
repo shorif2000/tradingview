@@ -142,10 +142,10 @@ slowRng = input.float(2.0, "range", minval = 0.1, step = 0.1, group = gRF, inlin
 rfMode  = input.string("Fast only", "Signal source", group = gRF,
      options = ["Both must agree", "Fast only", "Slow only"],
      tooltip = "Settled by calibration, not deduction. A single filter at 38/1.8 " +
-               "reproduces 159 of the reference 169 markers on 5M (F1 0.96) and " +
+               "reproduces 159 of the reference's 169 markers on 5M (F1 0.96) and " +
                "152 of 170 on 3M. Requiring both to agree reproduces far fewer.")
 minAdx  = input.float(20.0, "Minimum ADX to accept a signal", minval = 0, step = 1, group = gRF,
-     tooltip = "0 = the reference unfiltered behaviour.\n\n" +
+     tooltip = "0 = the reference's unfiltered behaviour.\n\n" +
                "20 removes 41% of signals - the low-trend-strength ones, where a " +
                "trend-follower has no business firing - and nudges measured " +
                "expectancy from -0.031R to +0.053R over 670 trades.\n\n" +

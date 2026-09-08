@@ -1,5 +1,5 @@
 """
-Re-run with the rule CALIBRATED against the reference own signals.
+Re-run with the rule CALIBRATED against the reference's own signals.
 
 The settings dialog says Fast Period 27 / Fast Range 1.6, and feeding those
 straight into the public range-filter algorithm reproduces only ~60% of the
