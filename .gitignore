@@ -20,3 +20,6 @@ Claude outputs/
 # Duplicate browser downloads: "name-1.pine", "name (1).pine"
 pine/*-[0-9].pine
 pine/*(*).pine
+
+# Local git bundles (history backups) — never commit these
+.bundles/
