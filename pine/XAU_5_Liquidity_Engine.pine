@@ -302,9 +302,10 @@ planMinR  = input.float(1.0, "Skip if reward below (× risk)", minval = 0.0, max
                "Measured on 12 timestamped gold setups from a public signals " +
                "channel that posts fixed $5 zones with a $5 stop beyond them: a " +
                "limit at the edge price reaches FIRST gives a $10.10 stop " +
-               "against a $5 first target — 0.49 to 1. Six of twelve hit that " +
-               "target and it still lost money. At 0.49:1 you need a 67% strike " +
-               "rate to break even.\n\n" +
+               "against a $5 first target — 0.49 to 1, which needs a 67% strike " +
+               "rate to break even. Six of twelve hit the target, so active " +
+               "break-even management is what keeps it near flat (-0.02R) " +
+               "rather than the geometry.\n\n" +
                "This engine rarely produces that shape — only 0.8% of measured " +
                "trades sit below 1.0R, median reward 3.51R — so 1.0 costs almost " +
                "nothing and makes the failure impossible. Raising it to 3.0 " +
