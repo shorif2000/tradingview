@@ -3,21 +3,35 @@
 A regime-switching scalping system for gold, built for **TradingView** and **MetaTrader 5**, plus
 an independent Python backtester so you can check either platform against a second implementation.
 
+**Open source under the [MIT licence](LICENSE.md), and open to contributions** — the most useful
+of which are forward-test results and attempts to break the numbers, not code. See
+[Contributing](#contributing--and-what-would-actually-help).
+
+> **What makes this repo unusual is not the strategy — it is the record of what did not work.**
+> Twenty-plus ideas were measured and discarded, and they are all written down in `docs/` with
+> their sample sizes and confidence intervals. Two of the headline results here were *wrong in
+> ways that made them look better* before being caught. Read
+> [`AGENTS.md`](AGENTS.md) §7 before trusting anything.
+
 ## What's in the box
 
 | File | What it is |
 |---|---|
-| `XAU_Regime_Scalper_INDICATOR.pine` | TradingView **indicator** — BUY/SELL markers, SL/TP, liquidity map, reason labels, alerts |
-| `XAU_Regime_Scalper_STRATEGY.pine` | TradingView **strategy** — same logic, runs in the Strategy Tester |
-| `XAU_Regime_Scalper.mq5` | **MT5 expert advisor** — trades it live or in the MT5 Strategy Tester, and draws the same liquidity map |
-| `xau_engine.py` | The strategy re-implemented in Python, matched to Pine's `ta.*` maths |
-| `data_io.py` | CSV loader — MT5, MT4, TradingView export, scraped chart tables |
-| `run_backtest.py` / `final_report.py` | Run a backtest / build the combined HTML report |
-| `analyze.py` | Week-by-week, statistical checks, parameter sensitivity, walk-forward |
-| `m5.pkl` / `m1.pkl` / `m5_summer.pkl` | The three loaded datasets, ready to use |
-| `validate.py` | 32-check suite proving the engine is correct |
-| `gen_strategy.py` | Regenerates the Pine strategy from the indicator so they cannot drift apart |
-| `backtest_report.html` | The results on your two data samples |
+| `pine/XAU_Regime_Scalper_INDICATOR.pine` | TradingView **indicator** — BUY/SELL markers, SL/TP, liquidity map, reason labels, alerts. **The only hand-edited Pine file in the measured system** |
+| `pine/XAU_Regime_Scalper_STRATEGY.pine` | TradingView **strategy** — same logic, runs in the Strategy Tester. **Generated, never hand-edit** |
+| `pine/variants/*.pine` | Generated single-purpose cuts of the same engine |
+| `pine/XAU_5_Liquidity_Engine.pine` | Standalone **liquidity / resting-order indicator** — see [The second engine](#the-second-engine--xau-liquidity-engine). Hand-maintained, separate from the measured system |
+| `mql5/XAU_Regime_Scalper.mq5` | **MT5 expert advisor** — trades it live or in the MT5 Strategy Tester, and draws the same liquidity map |
+| `backtester/xau_engine.py` | The strategy re-implemented in Python, matched to Pine's `ta.*` maths |
+| `backtester/data_io.py` | CSV loader — MT5, MT4, TradingView export, scraped chart tables |
+| `backtester/run_backtest.py` / `final_report.py` | Run a backtest / build the combined HTML report |
+| `backtester/analyze.py` | Week-by-week, statistical checks, parameter sensitivity, walk-forward |
+| `backtester/validate.py` | 32-check suite proving the engine is correct |
+| `backtester/gen_strategy.py` | Regenerates the Pine strategy from the indicator so they cannot drift apart |
+| `tools/tv_console_backtest.js` | Browser-console backtester that runs on **TradingView's own chart data** — no CSV needed |
+| `data/` | The samples every number was measured on |
+| `docs/` | Every measured finding, including all the failures |
+| [`AGENTS.md`](AGENTS.md) | The single context document: architecture, 20 numbered invariants, and the failure each one prevents |
 
 ## How it decides
 
@@ -187,6 +201,45 @@ Export **6+ months of M5 or M1** from MT5 (View → Symbols → XAUUSD → Bars 
 → Export Bars). At this effect size roughly 180–200 trades decides it, and six months gives
 300–400. Everything is already wired: drop the file in and run `run_backtest.py`.
 
+## The second engine — XAU Liquidity Engine
+
+`pine/XAU_5_Liquidity_Engine.pine` is a separate, standalone indicator that came out of a
+different question: **why do signals always arrive after the move?**
+
+They arrive late because a confirmation signal cannot fire until the candle that produced it
+closes. That is not tunable. But the *level* is not late — a swing is confirmed five bars after it
+forms and then simply sits there, so it can be traded with a resting order instead of a market
+order after the fact.
+
+Measured on identical levels, stops and targets, changing only the entry:
+
+| | Confirmation entry | Anticipation entry |
+|---|---|---|
+| Expectancy | +0.222R | **+0.523R** |
+| 95% CI | [-0.11, +0.58] | **[+0.13, +0.93]** |
+| P(no edge) | 10.2% | **0.3%** |
+| Median stop | $6.25 | **$5.22** |
+| Time in trade | 60 min | **30 min** |
+| Max drawdown (0.01 lots) | -£85.63 | **-£39.54** |
+
+93% of a 27-cell parameter grid around those settings is positive across two periods of **opposite
+market direction**, against the ~25% baseline that pure noise produces at these sample sizes. That
+neighbourhood test is the only reason the number is quoted at all — and it is the only plateau
+found anywhere in this project.
+
+**Two earlier versions of this same result were wrong and both looked better.** One resolved limit
+fills using their own bar (look-ahead). One divided by a near-zero structural stop and reported
++0.972R when the median trade was -1.00R. Both are written up in
+[`docs/FINDINGS_anticipation.md`](docs/FINDINGS_anticipation.md). Assume the current figure
+contains a third such error until somebody finds it.
+
+The indicator draws a **pending-order table**: every resting limit you could place right now, with
+entry, stop, target, dollar risk, R:R, and risk as a percentage of your account. When it is empty
+it says why. `tools/tv_console_backtest.js` re-runs the whole test in your browser on TradingView's
+own chart data, so none of it has to be taken on trust.
+
+---
+
 ## Read this before trading it
 
 **0.01 lot on a £100 account is aggressive.** A typical 5m gold stop here is $3–6, which is
@@ -202,3 +255,94 @@ Any backtest is the optimistic case. Live trading adds requotes, wider spreads a
 slippage through stops on gaps. Trade it on demo until you've seen enough signals to judge it
 yourself — and given what the statistics above say, that is the honest recommendation rather than
 a disclaimer.
+
+---
+
+## Contributing — and what would actually help
+
+This project is **open source and open to contributions**, and the most valuable ones are not code.
+
+The single biggest weakness here is that every number was measured on 2026 data, on one
+instrument, by one person. More backtesting on the same two samples adds almost nothing. What
+would genuinely move this forward:
+
+### 1. Forward-test it and report what happened
+
+Run it on a demo account, log the trades, open an issue with the results — **including the losing
+weeks**. One honest month of forward results is worth more than any amount of additional fitting
+to the existing samples. Say which timeframe, which settings, and what your spread was.
+
+### 2. Break the numbers
+
+Two headline results in this repo were wrong in ways that flattered them, and both were caught
+only because somebody went looking. If you find a third, that is the single most valuable
+contribution possible. The places to look:
+
+- **Look-ahead** — anywhere a bar's own range is used to resolve something that happened part way
+  through it (invariant I19).
+- **Near-zero denominators** — any R-multiple divided by a stop distance that can collapse
+  (invariant I20). A three-figure R:R in a results table means this happened.
+- **Selection bias** — results quoted after choosing the best of N variants on the same data.
+
+### 3. Data from other periods or brokers
+
+Everything is measured on 2026 XAUUSD from one feed. M1 or M5 exports from 2022–2024, or from a
+different broker, would let the neighbourhood test run on genuinely out-of-sample data. That is
+the single fastest way to either confirm or kill the +0.523R figure.
+
+### 4. Take on the untested ideas
+
+`docs/` lists candidates that were observed but never validated — for instance a 3.0R
+minimum-reward floor that measured better (+0.773R against +0.523R) but discards 43% of trades and
+was chosen by looking at the same two periods it was scored on. That needs someone to test it
+properly on data it has not already seen.
+
+### How to get involved
+
+**Open an issue** describing what you want to work on, or comment on an existing one.
+
+**If you want direct commit access to contribute testing and results, ask for it in an issue** —
+say what you intend to test and roughly over what period, and access will be granted. Pull requests
+from a fork are equally welcome if you prefer to work that way. Bug reports and "your number is
+wrong because…" issues need no permission at all and are always welcome.
+
+**One rule for any change to strategy behaviour:** justify it against **both** samples in `data/`,
+never one. The standing bar is *"opposite market direction, same sign of result"*. Roughly 25% of
+zero-edge configurations clear that bar by luck at these sample sizes, so a genuine change should
+also show that its **neighbours** work — a real effect is a plateau, an artifact is a spike.
+Several plausible ideas died against that bar, and it is the only thing standing between this
+repository and a curve fit.
+
+Before opening a PR that touches the engine:
+
+```bash
+python3 backtester/validate.py       # 32 checks, all must pass
+python3 backtester/final_report.py   # must still print 149 trades | 44.3% WR | +0.291R
+```
+
+If either changes, behaviour changed — say so in the PR rather than letting it slide through.
+
+---
+
+## Acknowledgements
+
+**MASTERTRADES** — the original inspiration for this project. The approach of reading gold through
+liquidity levels, stop runs and higher-timeframe objectives is theirs, and this work began as an
+attempt to understand that way of seeing the market by building it from the ground up. Every
+algorithm in this repository is an independent implementation of publicly documented techniques,
+written from scratch; no proprietary source was accessed or copied. The direction came from them.
+The mistakes are mine.
+
+**DonovanWall** — the Range Filter, which is the basis of the signal mechanism reimplemented in
+`backtester/rf_lib.py`. That it measured at no edge on gold is a finding about this instrument and
+this timeframe, not about the filter.
+
+And to anyone who forward-tests this and reports a losing month: that is the contribution this
+project needs most.
+
+---
+
+## Licence
+
+MIT — see [LICENSE.md](LICENSE.md). Use it, change it, ship it, sell it. No warranty, and given
+what the drawdown numbers above say, no promises either.
