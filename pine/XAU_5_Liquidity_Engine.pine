@@ -331,6 +331,16 @@ nearMissAway = input.float(1.00, "Near-miss: then moved away (× ATR)", minval =
                "on four of them, but the pooled gap was +0.065R with a CI of " +
                "[−0.35, +0.48]. Directionally consistent, not proven — which is " +
                "why they are flagged and not hidden.")
+sigEdge   = input.bool(true, "Black outline on the entry zones", group = gSIG,
+     tooltip = "A hard border round the risk and reward blocks, and a heavier " +
+               "entry line.\n\n" +
+               "Fill alone is not enough to pull a shape forward when it sits on " +
+               "top of gap shading — two translucent fills at similar strength " +
+               "read as one wash. An outline is a different visual channel, so " +
+               "it separates the plan from the context behind it no matter what " +
+               "the fills are doing.")
+colEdge   = input.color(#000000, "Outline", group = gSIG, inline = "pc2")
+
 hideStale = input.bool(false, "Hide near-miss levels entirely", group = gLIQ,
      tooltip = "Off by default on purpose. The evidence says these are probably " +
                "worse, not certainly worse.")
@@ -536,9 +546,10 @@ f_drawLevel(Level L) =>
     line.set_xy1(L.pTp, x0, tpD)
     line.set_xy2(L.pTp, x0 + 3, tpD)
     line.set_extend(L.pTp, pExt)
-    line.set_color(L.pEnt, plan ? color.new(col, 20) : COL_NONE)
-    line.set_color(L.pSl, plan ? color.new(colSell, 30) : COL_NONE)
-    line.set_color(L.pTp, plan ? color.new(colBuy, 30) : COL_NONE)
+    line.set_color(L.pEnt, plan ? color.new(col, 0) : COL_NONE)
+    line.set_width(L.pEnt, sigEdge ? 3 : 2)
+    line.set_color(L.pSl, plan ? color.new(colSell, 25) : COL_NONE)
+    line.set_color(L.pTp, plan ? color.new(colBuy, 25) : COL_NONE)
     label.set_xy(L.pLb, bar_index + 6, ent)
     label.set_text(L.pLb, plan ? (L.stale ? "⚠ STALE  " : "") +
          (short ? "SELL LIMIT " : "BUY LIMIT ") +
@@ -706,10 +717,14 @@ if barstate.islast and array.size(levels) > 0
 //  50% line, and is what most people actually treat as the level.
 showFvgUp = input.bool(true, "Up gaps",   group = gFVG, inline = "f1")
 showFvgDn = input.bool(true, "Down gaps", group = gFVG, inline = "f1")
-colFvgUp  = input.color(color.new(#B22833, 80), "", group = gFVG, inline = "f1")
-colFvgDn  = input.color(color.new(#089981, 71), "", group = gFVG, inline = "f1")
+colFvgUp  = input.color(color.new(#B22833, 91), "", group = gFVG, inline = "f1")
+colFvgDn  = input.color(color.new(#089981, 91), "", group = gFVG, inline = "f1")
 showCE    = input.bool(true, "Show CE (50%)", group = gFVG, inline = "f2")
-colCE     = input.color(#B8B8B8, "", group = gFVG, inline = "f2")
+colCE     = input.color(color.new(#B8B8B8, 35), "", group = gFVG, inline = "f2")
+// Gaps are CONTEXT, not signals. They were drawn at 80 and 71 transparency,
+// which put them in front of the thing you are actually meant to read - the
+// trade plan. Both now sit at 91, and the CE line is no longer solid. If a gap
+// matters enough to trade, the plan drawn on top of it is what says so.
 useBodies = input.bool(true, "Measure with candle bodies, not wicks", group = gFVG,
      tooltip = "Body-to-body is the stricter reading: it counts only the range " +
                "where business was actually done, not where a wick reached.")
@@ -1001,7 +1016,7 @@ if showSigPlan and (pLong or pShort) and not na(pAtr) and pAtr > 0
     f_pushPlan(SigPlan.new(
          ent = ent, sl = sl, tp3 = tp3, isLong = isLong, done = tooWide, born = x1,
          lEnt = line.new(x1, ent, tooWide ? x1 : x2, ent,
-              color = tooWide ? COL_NONE : base, width = 2),
+              color = tooWide ? COL_NONE : base, width = sigEdge ? 3 : 2),
          lSl  = line.new(x1, sl, tooWide ? x1 : x2, sl,
               color = tooWide ? COL_NONE : colSl, width = 1, style = line.style_dashed),
          lTp1 = line.new(x1, tp1, tooWide ? x1 : x2, tp1,
@@ -1015,9 +1030,11 @@ if showSigPlan and (pLong or pShort) and not na(pAtr) and pAtr > 0
          // Entry->stop in red, entry->final target in green. The two blocks are
          // drawn to scale, so their relative height IS the reward-to-risk.
          bRisk = box.new(x1, math.max(ent, sl), hide ? x1 : x2, math.min(ent, sl),
-              border_color = COL_NONE, bgcolor = hide ? COL_NONE : color.new(colSl, 88)),
+              border_color = (hide or not sigEdge) ? COL_NONE : color.new(colEdge, 25),
+              border_width = 1, bgcolor = hide ? COL_NONE : color.new(colSl, 88)),
          bRew = box.new(x1, math.max(ent, tp3), hide ? x1 : x2, math.min(ent, tp3),
-              border_color = COL_NONE, bgcolor = hide ? COL_NONE : color.new(colTp, 90)),
+              border_color = (hide or not sigEdge) ? COL_NONE : color.new(colEdge, 25),
+              border_width = 1, bgcolor = hide ? COL_NONE : color.new(colTp, 90)),
          lb   = label.new(tooWide ? x1 : x2, ent,
               tooWide ? "SKIP " + tag + " — stop " + str.tostring(risk, "#.##") +
                    " > " + str.tostring(sigSlMax, "#.#") + "×ATR"
@@ -1062,6 +1079,11 @@ if sigFade and array.size(sigPlans) > 0
                 line.set_color(P.lTp3, color.new(colTp, 85))
                 box.set_bgcolor(P.bRisk, color.new(colSl, 96))
                 box.set_bgcolor(P.bRew, color.new(colTp, 96))
+                // Without these two the outline survives the fade and a dead
+                // plan keeps a hard black rectangle in front of live price -
+                // the exact congestion the fade exists to remove.
+                box.set_border_color(P.bRisk, color.new(colEdge, 88))
+                box.set_border_color(P.bRew, color.new(colEdge, 92))
                 // The price tags are the worst offenders for congestion, so
                 // they go entirely rather than dimming.
                 label.set_textcolor(P.pSl, COL_NONE)
