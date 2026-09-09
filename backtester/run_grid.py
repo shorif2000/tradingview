@@ -12,20 +12,12 @@ import numpy as np
 import pandas as pd
 
 warnings.filterwarnings("ignore")
-from paths import dataset
 from xau_engine import atr as atr_fn, ema, rsi as rsi_fn
 from rf_lib import rf_signals, simulate, summarise
 
-M1 = dataset("m1")
-B5 = dataset("m5_summer")
+from samples import samples
 
-def rs(m1, rule):
-    o = m1.resample(rule, label="left", closed="left").agg(
-        {"open":"first","high":"max","low":"min","close":"last","volume":"sum"})
-    return o.dropna()
-
-SAMPLES = {"2M Jan": (rs(M1,"2min"), M1), "3M Jan": (rs(M1,"3min"), M1),
-           "5M Jan": (rs(M1,"5min"), M1), "5M Jun-Aug": (B5, None)}
+SAMPLES = samples()
 
 # pre-compute signals once per (sample, mode)
 BASE = {}

@@ -3,6 +3,7 @@ import warnings, numpy as np, pandas as pd
 warnings.filterwarnings("ignore")
 import improve as I
 from improve2 import gated
+from samples import boot
 
 def pooled(**kw):
     out=[]
@@ -10,11 +11,6 @@ def pooled(**kw):
         s = gated(sg, kw.pop("gate")) if kw.get("gate") else sg
         out.append(I.run(s, m1, **{k:v for k,v in kw.items() if k!="gate"}))
     return pd.concat(out)
-
-def boot(r, n=10000, seed=1):
-    rng=np.random.default_rng(seed); r=np.asarray(r,float)
-    m=rng.choice(r,(n,len(r)),replace=True).mean(1)
-    return np.percentile(m,2.5), np.percentile(m,97.5), (m<=0).mean()
 
 CAND = {
   "baseline (no filter)":        dict(),
@@ -26,7 +22,7 @@ print(f"{'config':<24} {'n':>6} {'expR':>8} {'win%':>7} {'95% CI':>22} {'P(no ed
 res={}
 for lab,kw in CAND.items():
     tr = pooled(**dict(kw))
-    lo,hi,p = boot(tr.r)
+    lo,hi,p = boot(tr.r, seed=1)
     res[lab]=tr
     print(f"{lab:<24} {len(tr):>6} {tr.r.mean():>+8.3f} {(tr.r>0).mean()*100:>6.1f}% "
           f"  [{lo:+.3f}, {hi:+.3f}] {p*100:>10.1f}%")

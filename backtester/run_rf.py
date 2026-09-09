@@ -4,30 +4,17 @@ import warnings
 import pandas as pd
 
 warnings.filterwarnings("ignore")
-from paths import dataset
 from rf_lib import rf_signals, simulate, summarise, direction_accuracy
+from samples import samples
 
-M1 = dataset("m1")
-B5 = dataset("m5_summer")
-
-def resample(m1: pd.DataFrame, rule: str) -> pd.DataFrame:
-    o = m1.resample(rule, label="left", closed="left").agg(
-        {"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"})
-    return o.dropna()
-
-SAMPLES = {
-    "2M Jan": (resample(M1, "2min"), M1),
-    "3M Jan": (resample(M1, "3min"), M1),
-    "5M Jan": (resample(M1, "5min"), M1),
-    "5M Jun-Aug": (B5, None),
-}
+SAMPLES = samples()
 
 print(f"{'sample':<12} {'bars':>7}  {'from':<17} {'to':<17}")
 for k, (d, _) in SAMPLES.items():
     print(f"{k:<12} {len(d):>7,}  {str(d.index[0])[:16]:<17} {str(d.index[-1])[:16]:<17}")
 
 print("\n" + "=" * 100)
-print("BASELINE — the reference settings (fast 27/1.6, slow 55/2), all three combination modes")
+print("BASELINE — the original's settings (fast 27/1.6, slow 55/2), all three combination modes")
 print("=" * 100)
 print(f"{'sample':<12} {'mode':<6} {'trades':>7} {'win%':>7} {'longW%':>7} {'shortW%':>8} "
       f"{'exp R':>8} {'net £':>8} {'DD%':>6}   direction-only 10/20/40 bars")

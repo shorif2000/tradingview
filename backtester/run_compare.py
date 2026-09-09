@@ -13,20 +13,12 @@ import numpy as np
 import pandas as pd
 
 warnings.filterwarnings("ignore")
-from paths import dataset
 from xau_engine import Config, backtest, stats
 from rf_lib import rf_signals, rf_state
 
-M1 = dataset("m1")
-B5 = dataset("m5_summer")
+from samples import TF_MINUTES, samples
 
-def rs(m1, rule):
-    o = m1.resample(rule, label="left", closed="left").agg(
-        {"open":"first","high":"max","low":"min","close":"last","volume":"sum"})
-    return o.dropna()
-
-SAMPLES = {"2M Jan": (rs(M1,"2min"), M1, 2), "3M Jan": (rs(M1,"3min"), M1, 3),
-           "5M Jan": (rs(M1,"5min"), M1, 5), "5M Jun-Aug": (B5, None, 5)}
+SAMPLES = samples()
 
 def cfg_for(tf):
     return Config(start_balance_gbp=100.0, lots=0.02, spread_usd=0.20, tf_minutes=tf,
@@ -50,7 +42,8 @@ print(f"{'sample':<12} {'trades':>7} {'win%':>7} {'exp R':>8} {'net £':>9} {'DD
       f"{'RF-aligned':>26} {'RF-opposed':>26}")
 
 rows = []
-for nm, (d, m1, tf) in SAMPLES.items():
+for nm, (d, m1) in SAMPLES.items():
+    tf = TF_MINUTES[nm]
     cfg = cfg_for(tf)
     tr, eq, feat = backtest(d, cfg, m1)
     st = stats(tr, eq, cfg)

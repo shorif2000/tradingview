@@ -18,6 +18,7 @@ import pandas as pd
 
 warnings.filterwarnings("ignore")
 from paths import dataset
+from samples import boot
 from xau_engine import atr as atr_fn
 
 H4 = dataset("h4")
@@ -76,13 +77,6 @@ def crt(d, *, fade=True, rr=2.0, max_bars=20, spread=0.20, slip=0.10,
     return pd.DataFrame(rows)
 
 
-def boot(r, n=10000, seed=3):
-    rng = np.random.default_rng(seed)
-    r = np.asarray(r, float)
-    m = rng.choice(r, (n, len(r)), replace=True).mean(1)
-    return np.percentile(m, 2.5), np.percentile(m, 97.5), (m <= 0).mean()
-
-
 def quarters(tr, k=4):
     m = len(tr) // k
     return [round(tr.r.iloc[i * m:(i + 1) * m].mean(), 3) for i in range(k)]
@@ -99,6 +93,6 @@ for lab, d in (("H4", H4), ("H1", H1)):
         if len(tr) < 10:
             print(f"{lab:<8} {vlab:<24} too few")
             continue
-        lo, hi, p = boot(tr.r)
+        lo, hi, p = boot(tr.r, seed=3)
         print(f"{lab:<8} {vlab:<24} {len(tr):>5} {(tr.r>0).mean()*100:>6.1f}% "
               f"{tr.r.mean():>+8.3f}  [{lo:+.3f},{hi:+.3f}] {p*100:>10.1f}%  {quarters(tr)}")
