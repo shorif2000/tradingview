@@ -23,3 +23,6 @@ pine/*(*).pine
 
 # Local git bundles (history backups) — never commit these
 .bundles/
+
+# macOS Finder metadata
+.DS_Store

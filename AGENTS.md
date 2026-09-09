@@ -2,7 +2,7 @@
 
 Single handoff document for any agent or person picking this repo up cold.
 Everything here is a **measured fact or a decision with its reason**, not a plan.
-Changing anything under [§3 Invariants](#3-invariants) changes a *result*, not a
+Changing anything under [§3 Invariants](#3-invariants) changes a _result_, not a
 style choice.
 
 `CLAUDE.md` is a pointer to this file. Keep one context document, not two — two
@@ -18,13 +18,13 @@ drift apart, and the second one to drift is the one that misleads.
 A regime-switching **scalping system for XAUUSD (gold)** on 2m/3m/5m, implemented
 **four times** so each implementation can be cross-checked against the others.
 
-| Surface | File | Role |
-|---|---|---|
-| TradingView indicator | `pine/XAU_Regime_Scalper_INDICATOR.pine` | **Hand-maintained source of truth.** Live signals, alerts, all drawing. ~1393 lines |
-| TradingView strategy | `pine/XAU_Regime_Scalper_STRATEGY.pine` | **Generated** — never hand-edit. 1507 lines |
-| TradingView variants | `pine/variants/*.pine` | **Generated** single-purpose cuts (different default toggles/UI, same engine). Never hand-edit |
-| MT5 expert advisor | `mql5/XAU_Regime_Scalper.mq5` | Hand-maintained port. Live trading / MT5 Strategy Tester. 981 lines, ASCII-only, 89 inputs |
-| Python backtester | `backtester/xau_engine.py` | Hand-maintained, maths matched to Pine `ta.*`. The only place results are measured — long history, walk-forward, sensitivity |
+| Surface               | File                                     | Role                                                                                                                         |
+| --------------------- | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| TradingView indicator | `pine/XAU_Regime_Scalper_INDICATOR.pine` | **Hand-maintained source of truth.** Live signals, alerts, all drawing. ~1393 lines                                          |
+| TradingView strategy  | `pine/XAU_Regime_Scalper_STRATEGY.pine`  | **Generated** — never hand-edit. 1507 lines                                                                                  |
+| TradingView variants  | `pine/variants/*.pine`                   | **Generated** single-purpose cuts (different default toggles/UI, same engine). Never hand-edit                               |
+| MT5 expert advisor    | `mql5/XAU_Regime_Scalper.mq5`            | Hand-maintained port. Live trading / MT5 Strategy Tester. 981 lines, ASCII-only, 89 inputs                                   |
+| Python backtester     | `backtester/xau_engine.py`               | Hand-maintained, maths matched to Pine `ta.*`. The only place results are measured — long history, walk-forward, sensitivity |
 
 | TradingView indicator | `pine/XAU_5_Liquidity_Engine.pine` | **Hand-maintained, standalone.** Standalone liquidity-level and resting-order tool. Not generated, not part of the measured system |
 
@@ -62,6 +62,7 @@ which §7 records as the thing that consistently did not work on this instrument
 - Sizing context: **£100 start**, 0.01 or 0.02 lots.
 - Stated goals were "90% win rate" and "90%+ PnL". **Neither is achievable on this
   data.** Do not tune toward them — see [§7](#7-things-that-do-not-work).
+- Get data from Trading view. browse to site select the required timeframe. right click and switch to table view. then extract the data by scrolling down. same for all other timeframes. !m/3M/5M etc.
 
 ---
 
@@ -135,19 +136,21 @@ other two.
 
 ### `backtester/` file map
 
-| File | What it does |
-|---|---|
-| `xau_engine.py` | Strategy logic, ~1600 lines. Pine-exact. See [§4](#4-architecture) for internal order |
-| `paths.py` | Repo-relative paths + `dataset()` loader. Everything else imports from here |
-| `data_io.py` | Tolerant OHLC loader — TradingView/MT5/MT4 quirks: tabs inside a comma-separated header, thousands separators in quoted numbers, headerless MT4 files, reverse chronological order, null glyphs. Resamples to 5m unless told not to. Entry points `load_ohlc()` and `describe()` |
-| `run_backtest.py` | Single run against a CSV or synthetic bars |
-| `validate.py` | 32 invariant checks against synthetic bars: fills land in the triggering bar, R-multiples match configured RR, **stop wins ties**, guardrails bind, no lookahead, ruin handling |
-| `make_synth.py` | Structurally-realistic (**not** statistically-real) synthetic 5m bars, for engine validation only. **Never quote its performance numbers as edge** |
-| `analyze.py` | Week-by-week, parameter sensitivity, walk-forward |
-| `signal_accuracy.py` | Separates *direction* quality (did price move the right way at all) from *exit-geometry* quality (did the R-multiple capture it), using M1 to resolve which of +1R/−1R came first |
-| `report.py` / `final_report.py` | Self-contained HTML reports (equity curve, cost sensitivity, walk-forward). `final_report.py` is specific to the two named real samples |
-| `gen_strategy.py` | Indicator → strategy, 13 transforms |
-| `gen_variants.py` | Indicator → 4 variants, defaults only |
+| File                            | What it does                                                                                                                                                                                                                                                                     |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `xau_engine.py`                 | Strategy logic, ~1600 lines. Pine-exact. See [§4](#4-architecture) for internal order                                                                                                                                                                                            |
+| `paths.py`                      | Repo-relative paths + `dataset()` loader. Everything else imports from here                                                                                                                                                                                                      |
+| `data_io.py`                    | Tolerant OHLC loader — TradingView/MT5/MT4 quirks: tabs inside a comma-separated header, thousands separators in quoted numbers, headerless MT4 files, reverse chronological order, null glyphs. Resamples to 5m unless told not to. Entry points `load_ohlc()` and `describe()` |
+| `run_backtest.py`               | Single run against a CSV or synthetic bars                                                                                                                                                                                                                                       |
+| `validate.py`                   | 32 invariant checks against synthetic bars: fills land in the triggering bar, R-multiples match configured RR, **stop wins ties**, guardrails bind, no lookahead, ruin handling                                                                                                  |
+| `make_synth.py`                 | Structurally-realistic (**not** statistically-real) synthetic 5m bars, for engine validation only. **Never quote its performance numbers as edge**                                                                                                                               |
+| `analyze.py`                    | Week-by-week, parameter sensitivity, walk-forward                                                                                                                                                                                                                                |
+| `signal_accuracy.py`            | Separates _direction_ quality (did price move the right way at all) from _exit-geometry_ quality (did the R-multiple capture it), using M1 to resolve which of +1R/−1R came first                                                                                                |
+| `report.py` / `final_report.py` | Self-contained HTML reports (equity curve, cost sensitivity, walk-forward). `final_report.py` is specific to the two named real samples                                                                                                                                          |
+| `gen_strategy.py`               | Indicator → strategy, 13 transforms                                                                                                                                                                                                                                              |
+| `gen_variants.py`               | Indicator → 4 variants, defaults only                                                                                                                                                                                                                                            |
+| `anticipation.py`               | The anticipation-entry study. One parameterised `run()` plus four CLI studies (`compare`, `outliers`, `grid`, `minr`, `all`). **Replaced `predict.py` and `predict5/6/7/8/10.py`** — seven files that each re-implemented the same trade loop with one parameter changed         |
+| `target.py`                     | The supplied 80% / +0.20R target, tested at £500. Studies `rules`, `flips`, `cost`, `fix`, `money`, `all`. **Replaced `target80.py`, `target500.py`, `target_fix.py`**                                                                                                           |
 
 `analyze.py` slices per-week numbers from **one full-sample backtest**, never by
 re-running the engine per week. Re-running per slice would throw away the ~215-bar
@@ -167,13 +170,13 @@ item 12). This is mechanics, not edge — it does not rescue a setup that has no
 `paths.dataset(name)` loads from `data/` and caches the parsed frame under
 `.cache/`. Pickles are a **cache, never a source of truth** — delete them freely.
 
-| Name | File | TZ | Resampled to 5m |
-|---|---|---|---|
-| `m5` | `XAUUSD_M5_jan2026_mt5.csv` | `Etc/GMT-2` | yes |
-| `m1` | `XAUUSD_M1_jan2026_mt5.csv` | `Etc/GMT-2` | **no** — see I16 |
-| `m5_summer` | `XAUUSD_M5_jun-aug2026_tradingview.csv` | `UTC` | yes |
-| `h1` | `XAUUSD_H1_tradingview.csv` | `UTC` | no |
-| `h4` | `XAUUSD_H4_tradingview.csv` | `UTC` | no |
+| Name        | File                                    | TZ          | Resampled to 5m  |
+| ----------- | --------------------------------------- | ----------- | ---------------- |
+| `m5`        | `XAUUSD_M5_jan2026_mt5.csv`             | `Etc/GMT-2` | yes              |
+| `m1`        | `XAUUSD_M1_jan2026_mt5.csv`             | `Etc/GMT-2` | **no** — see I16 |
+| `m5_summer` | `XAUUSD_M5_jun-aug2026_tradingview.csv` | `UTC`       | yes              |
+| `h1`        | `XAUUSD_H1_tradingview.csv`             | `UTC`       | no               |
+| `h4`        | `XAUUSD_H4_tradingview.csv`             | `UTC`       | no               |
 
 Sample naming used throughout `docs/`: **Sample A** = January MT5 export (+9.2%
 rally, real per-bar spread, M1 available). **Sample B** = June–August TradingView
@@ -198,28 +201,28 @@ was 2h-shifted because UTC+3 was assumed.
 Do not change these without re-measuring and updating the numbers in `README.md`,
 `docs/HOW_TO_TRADE_IT.md` and this file.
 
-| # | Invariant | The failure it prevents |
-|---|---|---|
-| I1 | `tfK = max(5.0 / tfMin, 1.0)` — **clamped at 1.0** | Unclamped, a 1h chart got EMA 2/4/17, pivot 2, ATR ×0.29 and an impulse threshold of $5.75 instead of $19.86 → 286 spurious order blocks (119 after the fix) |
-| I2 | Strategy SL/TP reset guarded by `if strategy.position_size == 0 and not goLong and not goShort` | `strategy.position_size` is 0 on the entry bar, so the naive guard wiped SL/TP the same bar it set them |
-| I3 | Python EMA uses `_seeded_ewm` with an SMA seed | `pandas.ewm` differs from Pine `ta.ema` for the first `len` bars; unseeded, the port diverges |
-| I4 | Percentages computed as `100.0 * wins / tot` | Integer division silently returned 0 |
-| I5 | SMC block declared **above** the limit-entry block | `obBuyTop` / `obSellBot` used before declaration |
-| I6 | Zone/box cosmetics run under `barstate.islast`; state updates run every bar | Redrawing zones on every historical bar froze the browser tab |
-| I7 | Reason labels capped at `maxReasonLbl` (default 2), oldest shifted off | Labels overlapped into unreadable congestion |
-| I8 | MTF bias uses EMA **20/50** and masks NaN to 0 (unknown) | `EMA50 > EMA200` with NaN evaluates False, so "no history" was reported as "downtrend" |
-| I9 | Volume-imbalance boxes skip their creation bar via `box.get_left(...) < bar_index - 1` | Otherwise the box fills on the bar that created it |
-| I10 | Pine ternaries wrapped at **18 spaces max** | A 36-space continuation indent is a hard Pine compile error |
-| I11 | Input group constants unique (`gRM` for Roadmap, not `gR`) | Duplicate `gR` between Regime and Roadmap = compile error. When renaming, catch **both** `group=gR` and `group = gR,` forms |
-| I12 | One indicator handles all four jobs via the `scriptMode` dropdown | A 4-script split hits TradingView's "maximum number of studies per chart" |
-| I13 | Intrabar order resolved from **M1**, **stop wins ties** | A 2R system's result is decided entirely by which of SL/TP is touched first |
-| I14 | Spread from the MT5 `<SPREAD>` column, bid-price assumption | $0.20 spread against a $3 stop is ~7% of risk per trade |
-| I15 | Ruin and margin modelled explicitly | An early run drove the account to **−£121**, not a possible outcome |
-| I16 | `dataset("m1")` loads with `resample_5m=False`, and `_check_step` asserts the modal bar spacing | The M1 file resampled to 5m is just a second copy of the M5 file, which **silently disables I13** while still producing plausible-looking results |
-| I17 | Derived files (`*.clean.csv`, pickles, reports) go to `.cache/` and `reports/` | `_preclean` used to write beside the source, leaving junk inside `data/` |
-| I18 | `Config.tf_minutes` set when running a non-5m chart | Bar-count settings rescale to preserve wall-clock span and ATR sizing converts via `sqrt(time)`; without it, other-timeframe backtests run distorted lookback windows |
-| I19 | A limit-order fill resolves from the **next** bar, never its own | The order fills part way through the candle, so the rest of that candle's range is unknowable at bar resolution — awarding it lets a wide bar hand the test whichever of SL/TP suits. Market-on-open entries are exempt: the fill *is* that bar's open |
-| I20 | Every stop has a **minimum placeable distance** (0.50 × ATR) before R is computed | A structural stop can land cents from the fill; risk divides to near zero and R multiples explode. This alone turned +0.02R into a fake +0.972R. Check `t.rr.max()` — a three-figure R:R means this was broken |
+| #   | Invariant                                                                                       | The failure it prevents                                                                                                                                                                                                                                |
+| --- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| I1  | `tfK = max(5.0 / tfMin, 1.0)` — **clamped at 1.0**                                              | Unclamped, a 1h chart got EMA 2/4/17, pivot 2, ATR ×0.29 and an impulse threshold of $5.75 instead of $19.86 → 286 spurious order blocks (119 after the fix)                                                                                           |
+| I2  | Strategy SL/TP reset guarded by `if strategy.position_size == 0 and not goLong and not goShort` | `strategy.position_size` is 0 on the entry bar, so the naive guard wiped SL/TP the same bar it set them                                                                                                                                                |
+| I3  | Python EMA uses `_seeded_ewm` with an SMA seed                                                  | `pandas.ewm` differs from Pine `ta.ema` for the first `len` bars; unseeded, the port diverges                                                                                                                                                          |
+| I4  | Percentages computed as `100.0 * wins / tot`                                                    | Integer division silently returned 0                                                                                                                                                                                                                   |
+| I5  | SMC block declared **above** the limit-entry block                                              | `obBuyTop` / `obSellBot` used before declaration                                                                                                                                                                                                       |
+| I6  | Zone/box cosmetics run under `barstate.islast`; state updates run every bar                     | Redrawing zones on every historical bar froze the browser tab                                                                                                                                                                                          |
+| I7  | Reason labels capped at `maxReasonLbl` (default 2), oldest shifted off                          | Labels overlapped into unreadable congestion                                                                                                                                                                                                           |
+| I8  | MTF bias uses EMA **20/50** and masks NaN to 0 (unknown)                                        | `EMA50 > EMA200` with NaN evaluates False, so "no history" was reported as "downtrend"                                                                                                                                                                 |
+| I9  | Volume-imbalance boxes skip their creation bar via `box.get_left(...) < bar_index - 1`          | Otherwise the box fills on the bar that created it                                                                                                                                                                                                     |
+| I10 | Pine ternaries wrapped at **18 spaces max**                                                     | A 36-space continuation indent is a hard Pine compile error                                                                                                                                                                                            |
+| I11 | Input group constants unique (`gRM` for Roadmap, not `gR`)                                      | Duplicate `gR` between Regime and Roadmap = compile error. When renaming, catch **both** `group=gR` and `group = gR,` forms                                                                                                                            |
+| I12 | One indicator handles all four jobs via the `scriptMode` dropdown                               | A 4-script split hits TradingView's "maximum number of studies per chart"                                                                                                                                                                              |
+| I13 | Intrabar order resolved from **M1**, **stop wins ties**                                         | A 2R system's result is decided entirely by which of SL/TP is touched first                                                                                                                                                                            |
+| I14 | Spread from the MT5 `<SPREAD>` column, bid-price assumption                                     | $0.20 spread against a $3 stop is ~7% of risk per trade                                                                                                                                                                                                |
+| I15 | Ruin and margin modelled explicitly                                                             | An early run drove the account to **−£121**, not a possible outcome                                                                                                                                                                                    |
+| I16 | `dataset("m1")` loads with `resample_5m=False`, and `_check_step` asserts the modal bar spacing | The M1 file resampled to 5m is just a second copy of the M5 file, which **silently disables I13** while still producing plausible-looking results                                                                                                      |
+| I17 | Derived files (`*.clean.csv`, pickles, reports) go to `.cache/` and `reports/`                  | `_preclean` used to write beside the source, leaving junk inside `data/`                                                                                                                                                                               |
+| I18 | `Config.tf_minutes` set when running a non-5m chart                                             | Bar-count settings rescale to preserve wall-clock span and ATR sizing converts via `sqrt(time)`; without it, other-timeframe backtests run distorted lookback windows                                                                                  |
+| I19 | A limit-order fill resolves from the **next** bar, never its own                                | The order fills part way through the candle, so the rest of that candle's range is unknowable at bar resolution — awarding it lets a wide bar hand the test whichever of SL/TP suits. Market-on-open entries are exempt: the fill _is_ that bar's open |
+| I20 | Every stop has a **minimum placeable distance** (0.50 × ATR) before R is computed               | A structural stop can land cents from the fill; risk divides to near zero and R multiples explode. This alone turned +0.02R into a fake +0.972R. Check `t.rr.max()` — a three-figure R:R means this was broken                                         |
 
 ---
 
@@ -234,24 +237,24 @@ it cannot flicker bar to bar.
 **2 — Modules, in priority order:** liquidity sweep > trend pullback > range fade.
 Each is independently switchable and produces its own reason strings.
 
-| Module | Trigger | Status |
-|---|---|---|
-| **Range fade** | Price pokes outside a Bollinger band at a range extreme and closes back inside (failed breakout) | **ON** — carries the system |
-| **Liquidity sweep** | Price runs stops beyond a swing level and closes straight back (failed stop raid) | **ON** — complementary to range fade |
-| **Trend pullback** | Dip into the EMA20 zone with H1 trend agreeing | **OFF** — loses money |
-| **Breakout continuation** | Continuation after a range break | **OFF** — Python only (`use_breakout_module`), never wired into Pine |
+| Module                    | Trigger                                                                                          | Status                                                               |
+| ------------------------- | ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------- |
+| **Range fade**            | Price pokes outside a Bollinger band at a range extreme and closes back inside (failed breakout) | **ON** — carries the system                                          |
+| **Liquidity sweep**       | Price runs stops beyond a swing level and closes straight back (failed stop raid)                | **ON** — complementary to range fade                                 |
+| **Trend pullback**        | Dip into the EMA20 zone with H1 trend agreeing                                                   | **OFF** — loses money                                                |
+| **Breakout continuation** | Continuation after a range break                                                                 | **OFF** — Python only (`use_breakout_module`), never wired into Pine |
 
 Range and sweep are kept **together** because together they beat either alone on
-both expectancy *and* drawdown. Trend and breakout are **quarantined in variant 3**
+both expectancy _and_ drawdown. Trend and breakout are **quarantined in variant 3**
 because bolting them on drags the pair from +0.368R to +0.198R.
 
 **3 — Score confirmations.** Each candidate needs ≥2 independent reasons (swept-level
 reclaim, engulfing candle, pin bar, RSI reclaiming 50, higher low, +DI expansion,
 divergence, …). Nothing fires on a single condition, and **a long/short tie is
 skipped, not resolved arbitrarily**. The on-chart and alert reason text is generated
-from the *same list* used to score, so it cannot drift from what actually fired.
+from the _same list_ used to score, so it cannot drift from what actually fired.
 
-> **Counter-intuitive but measured:** adding confirmations *reduces* expectancy,
+> **Counter-intuitive but measured:** adding confirmations _reduces_ expectancy,
 > because more routes to the score minimum let weaker setups through.
 > SMC votes: +0.29R → +0.06R. Reversal votes: +0.37R → +0.23R.
 > **Do not "improve" this by adding confirmations.**
@@ -267,7 +270,7 @@ position size as price moves in favour — exact mechanics in `Config`.
 
 **BSL** (buy-side liquidity, above swing highs) and **SSL** (below swing lows) are
 pools of resting stop orders. The tradable event is the **sweep**: price spikes
-through, fills them, closes straight back — trade *against* the spike.
+through, fills them, closes straight back — trade _against_ the spike.
 
 All implementations draw every live pool, tag its touch count (`BSL ×2`), turn it
 gold and mark it `swept` on a raid, and delete it on a clean break-through.
@@ -372,43 +375,43 @@ committing.
 
 Measured on 2M Jan + 5M Jan + 5M Jun–Aug, **0.02 lots, half off at 1R, swing trail**:
 
-| Configuration | Trades | Green | Expectancy | Net | Max DD |
-|---|---|---|---|---|---|
+| Configuration              | Trades  | Green     | Expectancy  | Net       | Max DD  |
+| -------------------------- | ------- | --------- | ----------- | --------- | ------- |
 | **Range + Sweep together** | **151** | **57.0%** | **+0.368R** | **+£384** | **14%** |
-| Range fade alone | 141 | 56.0% | +0.321R | +£353 | 48% |
-| Liquidity sweep alone | 63 | 54.0% | +0.314R | +£92 | 24% |
-| Trend pullback alone | 63 | 44.4% | −0.093R | −£68 | 75% |
-| Breakout alone | 49 | 40.8% | −0.076R | −£21 | 67% |
+| Range fade alone           | 141     | 56.0%     | +0.321R     | +£353     | 48%     |
+| Liquidity sweep alone      | 63      | 54.0%     | +0.314R     | +£92      | 24%     |
+| Trend pullback alone       | 63      | 44.4%     | −0.093R     | −£68      | 75%     |
+| Breakout alone             | 49      | 40.8%     | −0.076R     | −£21      | 67%     |
 
 Exit plans, pooled across all three samples:
 
-| Plan | Trades | Green | Expectancy | Max DD |
-|---|---|---|---|---|
-| 0.01, fixed 2R | 207 | 41.5% | +0.216R | 41% |
-| 0.01, 3R + swing trail | 199 | 38.7% | +0.267R | 31% |
-| 0.02, fixed 2R | 154 | 42.9% | +0.252R | 41% |
-| 0.02, half at 1R then 3R | 152 | 36.2% | +0.241R | 44% |
+| Plan                              | Trades  | Green     | Expectancy  | Max DD  |
+| --------------------------------- | ------- | --------- | ----------- | ------- |
+| 0.01, fixed 2R                    | 207     | 41.5%     | +0.216R     | 41%     |
+| 0.01, 3R + swing trail            | 199     | 38.7%     | +0.267R     | 31%     |
+| 0.02, fixed 2R                    | 154     | 42.9%     | +0.252R     | 41%     |
+| 0.02, half at 1R then 3R          | 152     | 36.2%     | +0.241R     | 44%     |
 | **0.02, half at 1R, rest trails** | **151** | **57.0%** | **+0.368R** | **14%** |
-| 0.02, half at 1R + break-even | 163 | 52.8% | +0.157R | 41% |
+| 0.02, half at 1R + break-even     | 163     | 52.8%     | +0.157R     | 41%     |
 
 Per timeframe on the winning plan:
 
-| Sample | Green | Expectancy | Net | DD |
-|---|---|---|---|---|
-| 2M January | 50.0% | +0.268R | +£53 | 36% |
-| 5M January | 61.5% | +0.259R | +£61 | 29% |
-| 5M June–August | 59.1% | +0.502R | +£270 | 14% |
+| Sample         | Green | Expectancy | Net   | DD  |
+| -------------- | ----- | ---------- | ----- | --- |
+| 2M January     | 50.0% | +0.268R    | +£53  | 36% |
+| 5M January     | 61.5% | +0.259R    | +£61  | 29% |
+| 5M June–August | 59.1% | +0.502R    | +£270 | 14% |
 
 ### Directional predictors — replication test
 
 At every bar: is the nearest liquidity **above** taken before the nearest **below**?
 
-| Predictor | Sample A | Sample B | Verdict |
-|---|---|---|---|
+| Predictor                             | Sample A  | Sample B  | Verdict                             |
+| ------------------------------------- | --------- | --------- | ----------------------------------- |
 | **Proximity** (which level is closer) | **86.9%** | **86.4%** | **replicates — the only real edge** |
-| H1 trend up | 54.8% | 43.1% | flipped sign — spurious |
-| Fresh SSL sweep | 61.6% | 38.4% | flipped sign — spurious |
-| Regime = RANGE | 58.9% | 46.2% | flipped sign — spurious |
+| H1 trend up                           | 54.8%     | 43.1%     | flipped sign — spurious             |
+| Fresh SSL sweep                       | 61.6%     | 38.4%     | flipped sign — spurious             |
+| Regime = RANGE                        | 58.9%     | 46.2%     | flipped sign — spurious             |
 
 **Only proximity forecasts direction.** Trend, regime and sweep state are worthless
 for it — they looked predictive in one sample and inverted in the other, which is
@@ -426,41 +429,43 @@ exactly what a spurious pattern does. None of them feed the roadmap script.
 - **Manual mobile execution costs ~85% of the edge** against instant fills.
 - **Selection bias is real.** With all three modules on (pre-selection), Samples A+B
   give **+0.215R over 166 trades, CI −0.004 to +0.440R** — touching zero. The
-  +0.291R headline is *post*-selection. Treat the pre-selection number as the
+  +0.291R headline is _post_-selection. Treat the pre-selection number as the
   trustworthy one and the post-selection one as a hypothesis for new data.
 - **The bar for trusting any change** is "opposite market direction, same sign of
   result". Justify a change against **both** samples in `data/`, never one.
 
 ### Anticipating a level beats confirming it — the one plateau found
 
-The strongest result in the project, and the only one whose *neighbourhood* also
+The strongest result in the project, and the only one whose _neighbourhood_ also
 works. Rest a limit **0.25 × ATR beyond** an untouched swing, stop at the last
 swing beyond it (floored at **0.50 × ATR**, skip beyond 2.5 × ATR), target the
 extreme of the last 6 closed 1H bars, skip if that target is more than **6R**
 away. Against the confirmation entry on identical levels, stops and targets:
 
-| | CONFIRM | ANTICIPATE |
-|---|---|---|
-| Expectancy | +0.222R | **+0.523R** |
-| 95% CI / P(no edge) | [−0.11,+0.58] / 10.2% | **[+0.13,+0.93] / 0.3%** |
-| minus 3 best trades | +0.082R | **+0.392R** |
-| Median stop / time in trade | $6.25 / 60 min | **$5.22 / 30 min** |
-| Max DD at 0.01 lots | −£85.63 | **−£39.54** |
+|                             | CONFIRM               | ANTICIPATE               |
+| --------------------------- | --------------------- | ------------------------ |
+| Expectancy                  | +0.222R               | **+0.523R**              |
+| 95% CI / P(no edge)         | [−0.11,+0.58] / 10.2% | **[+0.13,+0.93] / 0.3%** |
+| minus 3 best trades         | +0.082R               | **+0.392R**              |
+| Median stop / time in trade | $6.25 / 60 min        | **$5.22 / 30 min**       |
+| Max DD at 0.01 lots         | −£85.63               | **−£39.54**              |
 
 27-cell neighbourhood grid: **25/27 positive in both periods (93%)** against the
 ~25% noise baseline, median +0.253R. Breaks at `swingLen` 7 (+0.114R) and goes
 negative at swingLen 7 with a 4H target. Long/short balanced (+0.473 / +0.576).
-`docs/FINDINGS_anticipation.md`, `backtester/predict8.py`.
+`docs/FINDINGS_anticipation.md`, `backtester/anticipation.py` (run
+`python3 backtester/anticipation.py all`).
 
 **Two artifacts were removed to get here, both of which looked better:**
-- *Intrabar look-ahead* — a limit fills mid-candle, so resolution must start on
+
+- _Intrabar look-ahead_ — a limit fills mid-candle, so resolution must start on
   the NEXT bar. The tell was "median time in trade 0 min". Fixing it dropped a
   robustness grid from 72% to 16%, i.e. below noise.
-- *Division by near-zero* — a structural stop landing cents from the fill scored
+- _Division by near-zero_ — a structural stop landing cents from the fill scored
   small wins at 1,424R and 6,085R, producing a fake **+0.972R** (median outcome
   −1.00R; 70% of gross profit from the best 5%; −0.240R trimmed). The stop floor
   is what makes it honest: it took +0.972R to +0.02R, and the +0.523R above is
-  the capped-target version measured *with* the floor in place.
+  the capped-target version measured _with_ the floor in place.
 
 ---
 
@@ -492,13 +497,13 @@ Do not re-attempt without new evidence. Each was tested and failed.
    in both periods at these sample sizes, so 31 configs predict ~7.7 false
    winners; three were found. Fewer than noise produces.
    `docs/FINDINGS_signal_improvement.md`.
-12. **A lower-timeframe stop on a higher-timeframe idea.** The standard
-    multi-timeframe recipe — 1H/4H/Daily for direction, 5M for a tight entry and
-    a tight stop — gives exactly the R:R it promises (7x on 1H, 13.6x on 4H, 24x
-    on Daily) and a 12.7% win rate, with the median trade dead in 3 bars. Gold's
-    5M ATR is ~$4.80, so a stop beyond a 5M swing sits inside one bar's normal
-    range: the trade is killed by noise before the HTF thesis can act. Replicated
-    on two periods. `docs/FINDINGS_multitimeframe.md`.
+9. **A lower-timeframe stop on a higher-timeframe idea.** The standard
+   multi-timeframe recipe — 1H/4H/Daily for direction, 5M for a tight entry and
+   a tight stop — gives exactly the R:R it promises (7x on 1H, 13.6x on 4H, 24x
+   on Daily) and a 12.7% win rate, with the median trade dead in 3 bars. Gold's
+   5M ATR is ~$4.80, so a stop beyond a 5M swing sits inside one bar's normal
+   range: the trade is killed by noise before the HTF thesis can act. Replicated
+   on two periods. `docs/FINDINGS_multitimeframe.md`.
 
 10. **Candle Range Theory as taught** (fade the sweep back to the opposite end
     of the range). Negative at all six timeframes tested — 15M, 1H, 4H, Daily,
@@ -513,25 +518,36 @@ Do not re-attempt without new evidence. Each was tested and failed.
     regime artifact, and a reminder that N setups from one market condition is
     not N independent observations.
 
-9. **Pullback (limit) entries on a trend-follower.** −0.245R / −0.047R, far worse
-   than chasing. A resting order only fills when price comes back, so you are
-   selected into precisely the signals that immediately reversed.
+12. **Pullback (limit) entries on a trend-follower.** −0.245R / −0.047R, far worse
+    than chasing. A resting order only fills when price comes back, so you are
+    selected into precisely the signals that immediately reversed.
+
+13. **An 80% hit rate at 0.5:1 on the range-filter flip.** The supplied target
+    table quotes 78.5–80.6% and +0.18 to +0.21R. Its arithmetic is correct, but
+    the hit rate is `TP1/(TP1+SL)` — it excludes the "flip first" trades, 23% of
+    signals in its own 1m counts. Those average **−0.6R** here and are positive
+    ~1% of the time. Applying our measured flip outcome to their own counts takes
+    1m from +0.178R to **−0.002R**. Our own hit rate on the same rules is
+    **67–73%**, against a 66.7% break-even. Every fix tried — holding through the
+    flip, TP 0.5R through 2.0R, stops at 1.0× and 1.5× the candle — is negative
+    pooled at P(no edge) 97.7–100%. `docs/FINDINGS_target_80.md`,
+    `backtester/target.py`.
 
 ---
 
 ## 8. Environment constraints
 
-| Constraint | Detail |
-|---|---|
-| TradingView 5M ceiling | ~4 weeks (5,526 bars) whatever you scroll. That yields ~120 1H setups, ~30 4H, ~11 Daily, 0 Monthly — so a Daily or Monthly setup with 5M entries CANNOT be validated from TradingView data. Needs a multi-year M5/M1 export from MT5. |
-| TradingView history | Shrinking bar spacing does NOT fetch older bars — it only re-renders what is loaded. `model.timeScale().scrollToFirstBar()` requests history: 782 → 5,679 bars on 4H. That call is the difference between a six-month sample and 3.7 years, and in the CRT test it was the difference between a false positive and the truth. |
-| Market-data hosts | Blocked from the build sandbox (403/502). Data must be supplied as CSV exports |
-| `api.github.com` | 502 from the sandbox |
-| `GITHUB_TOKEN` / `GH_TOKEN` in sandbox | Literal placeholder `proxy-injected` — not a credential. **Never solicit or accept a real token** |
-| Device bridge (`device_bash`) | **No network.** `git push` must be run by the operator |
-| Device bridge deletes | `rm` blocked ("Operation not permitted"). `mv` into `_to_delete/` instead. Git leaves `.lock` files it cannot clean up — clear `HEAD.lock`, `index.lock`, `refs/heads/*.lock` **immediately before** any git write, or bypass the index with `commit-tree` + `update-ref` |
-| TradingView history caps | ~5,000 5m bars free, 10,000 Essential/Plus, 20,000 Premium. Six months of 5m gold is ~37,000 bars — the Strategy Tester cannot cover a long sample. That is what the Python backtester is for |
-| Credentials | Operator login details and OAuth sign-in are **declined on principle**, regardless of offered permission |
+| Constraint                             | Detail                                                                                                                                                                                                                                                                                                                        |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| TradingView 5M ceiling                 | ~4 weeks (5,526 bars) whatever you scroll. That yields ~120 1H setups, ~30 4H, ~11 Daily, 0 Monthly — so a Daily or Monthly setup with 5M entries CANNOT be validated from TradingView data. Needs a multi-year M5/M1 export from MT5.                                                                                        |
+| TradingView history                    | Shrinking bar spacing does NOT fetch older bars — it only re-renders what is loaded. `model.timeScale().scrollToFirstBar()` requests history: 782 → 5,679 bars on 4H. That call is the difference between a six-month sample and 3.7 years, and in the CRT test it was the difference between a false positive and the truth. |
+| Market-data hosts                      | Blocked from the build sandbox (403/502). Data must be supplied as CSV exports                                                                                                                                                                                                                                                |
+| `api.github.com`                       | 502 from the sandbox                                                                                                                                                                                                                                                                                                          |
+| `GITHUB_TOKEN` / `GH_TOKEN` in sandbox | Literal placeholder `proxy-injected` — not a credential. **Never solicit or accept a real token**                                                                                                                                                                                                                             |
+| Device bridge (`device_bash`)          | **No network.** `git push` must be run by the operator                                                                                                                                                                                                                                                                        |
+| Device bridge deletes                  | `rm` blocked ("Operation not permitted"). `mv` into `_to_delete/` instead. Git leaves `.lock` files it cannot clean up — clear `HEAD.lock`, `index.lock`, `refs/heads/*.lock` **immediately before** any git write, or bypass the index with `commit-tree` + `update-ref`                                                     |
+| TradingView history caps               | ~5,000 5m bars free, 10,000 Essential/Plus, 20,000 Premium. Six months of 5m gold is ~37,000 bars — the Strategy Tester cannot cover a long sample. That is what the Python backtester is for                                                                                                                                 |
+| Credentials                            | Operator login details and OAuth sign-in are **declined on principle**, regardless of offered permission                                                                                                                                                                                                                      |
 
 ---
 
@@ -589,9 +605,9 @@ Do not re-attempt without new evidence. Each was tested and failed.
 
 ## 11. Repo state
 
-| | |
-|---|---|
-| Remote | `https://github.com/shorif2000/tradingview` |
-| Local clone | `/Users/Mohammed/tradingview` (macOS) |
-| Branch | `main` |
-| Ignored | `*.pkl`, `__pycache__/`, `*.pyc`, `backtest_report.html`, `trades*.csv`, `.claude/`, `_to_delete/`, `reports/`, `.cache/` |
+|             |                                                                                                                           |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Remote      | `https://github.com/shorif2000/tradingview`                                                                               |
+| Local clone | `/Users/Mohammed/tradingview` (macOS)                                                                                     |
+| Branch      | `main`                                                                                                                    |
+| Ignored     | `*.pkl`, `__pycache__/`, `*.pyc`, `backtest_report.html`, `trades*.csv`, `.claude/`, `_to_delete/`, `reports/`, `.cache/` |
