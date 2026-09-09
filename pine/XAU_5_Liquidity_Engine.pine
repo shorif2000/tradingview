@@ -882,22 +882,69 @@ sigSlMax  = input.float(2.00, "Skip signal if stop exceeds (× ATR)", minval = 0
 sigTp1R   = input.float(1.0, "TP1 (× risk)", minval = 0.5, step = 0.5, group = gSIG,
      tooltip = "Take half off here. The remainder trails behind swing lows.")
 sigTp2R   = input.float(2.0, "TP2 (× risk)", minval = 0.5, step = 0.5, group = gSIG)
+sigTp3R   = input.float(3.0, "TP3 (× risk)", minval = 0.5, step = 0.5, group = gSIG,
+     tooltip = "A third target, added after comparing against a 2-minute scalping " +
+               "indicator that runs three.\n\n" +
+               "Note the difference in how they are spaced. Theirs sit at equal " +
+               "ATR steps — measured across four screenshots the gap was $1.05, " +
+               "$2.33, $2.70 and $3.47, and 2M ATR over the same week ran p10 " +
+               "$1.67, median $2.71, p90 $4.91. Equal steps of roughly 1×ATR.\n\n" +
+               "These sit at multiples of YOUR RISK instead. The difference " +
+               "matters: an ATR-spaced target is the same distance whether the " +
+               "stop is tight or wide, so the reward-to-risk silently changes " +
+               "with stop placement. Risk multiples hold R:R fixed, which is the " +
+               "quantity that decides whether a win rate is enough.")
+sigBoxes  = input.bool(true, "Shade the risk and reward zones", group = gSIG,
+     tooltip = "Filled boxes rather than bare lines — red from entry to stop, " +
+               "green from entry to the final target. Borrowed from a scalping " +
+               "indicator's UI, and it is a genuine improvement: the size of the " +
+               "red block against the green one is the reward-to-risk, visible " +
+               "without reading a single number.")
+sigFade   = input.bool(true, "Fade a plan once the move is over", group = gSIG,
+     tooltip = "A plan stops being information the moment it resolves. Once " +
+               "price reaches the stop or the final target — or the plan simply " +
+               "runs out of bars — the shading drops back, the price tags are " +
+               "removed and the lines dim, so live setups stand out against " +
+               "finished ones instead of competing with them.\n\n" +
+               "The objects are faded rather than deleted: the trade still " +
+               "happened and you can still see where it went, which is the " +
+               "point of leaving history on the chart at all.")
+sigPills  = input.bool(true, "Price tags on the right edge", group = gSIG,
+     tooltip = "TP1 / TP2 / TP3 / SL as coloured tags at the end of each line, " +
+               "the way TradingView's own position tool labels them.")
 sigSpread = input.float(0.20, "Spread + slippage ($)", minval = 0, step = 0.05, group = gSIG,
      tooltip = "Charged against the entry so the drawn price is the one you " +
                "would actually get, not the mid.")
 sigPlanLen = input.int(24, "Plan length (bars)", minval = 4, maxval = 200, group = gSIG)
-maxSigPlan = input.int(8, "Signal plans kept", minval = 1, maxval = 30, group = gSIG,
-     tooltip = "Each plan costs 4 lines and 1 label. The chart budget is shared " +
-               "with the liquidity levels, so this is deliberately small.")
+maxSigPlan = input.int(6, "Signal plans kept", minval = 1, maxval = 20, group = gSIG,
+     tooltip = "Each plan now costs 5 lines, 2 boxes and 5 labels — the shaded " +
+               "zones and the price tags are not free. The 500-object budget is " +
+               "shared with the liquidity levels, which is why this dropped from " +
+               "8 to 6 when the boxes were added.")
 colTp     = input.color(#089981, "TP", group = gSIG, inline = "pc")
 colSl     = input.color(#F23645, "SL", group = gSIG, inline = "pc")
 
 type SigPlan
+    // Prices and state, so a finished plan can be recognised and faded rather
+    // than left at full strength cluttering the chart behind live price.
+    float ent
+    float sl
+    float tp3
+    bool  isLong
+    bool  done
+    int   born
     line  lEnt
     line  lSl
     line  lTp1
     line  lTp2
+    line  lTp3
+    box   bRisk
+    box   bRew
     label lb
+    label pSl
+    label pT1
+    label pT2
+    label pT3
 
 var array<SigPlan> sigPlans = array.new<SigPlan>()
 
@@ -909,7 +956,14 @@ f_pushPlan(SigPlan P) =>
         line.delete(old.lSl)
         line.delete(old.lTp1)
         line.delete(old.lTp2)
+        line.delete(old.lTp3)
+        box.delete(old.bRisk)
+        box.delete(old.bRew)
         label.delete(old.lb)
+        label.delete(old.pSl)
+        label.delete(old.pT1)
+        label.delete(old.pT2)
+        label.delete(old.pT3)
 
 // Carried one bar so the entry can use the next open. Cleared every bar, so a
 // signal that never gets a following bar simply never draws.
@@ -934,38 +988,97 @@ if showSigPlan and (pLong or pShort) and not na(pAtr) and pAtr > 0
     sl     = isLong ? ent - risk : ent + risk
     tp1    = isLong ? ent + sigTp1R * risk : ent - sigTp1R * risk
     tp2    = isLong ? ent + sigTp2R * risk : ent - sigTp2R * risk
+    tp3    = isLong ? ent + sigTp3R * risk : ent - sigTp3R * risk
     x1     = bar_index
     x2     = bar_index + sigPlanLen
     base   = isLong ? #00E676 : #F23645
     tag    = (pIsMR ? "MR " : "") + (isLong ? "LONG" : "SHORT")
-    if tooWide
-        f_pushPlan(SigPlan.new(
-             lEnt = line.new(x1, ent, x1, ent, color = COL_NONE),
-             lSl  = line.new(x1, ent, x1, ent, color = COL_NONE),
-             lTp1 = line.new(x1, ent, x1, ent, color = COL_NONE),
-             lTp2 = line.new(x1, ent, x1, ent, color = COL_NONE),
-             lb   = label.new(x1, ent, "SKIP " + tag + " — stop " +
-                  str.tostring(risk, "#.##") + " > " +
-                  str.tostring(sigSlMax, "#.#") + "×ATR",
-                  style = label.style_label_left, color = color.new(#787B86, 20),
-                  textcolor = color.white, size = size.tiny)))
-    else
-        f_pushPlan(SigPlan.new(
-             lEnt = line.new(x1, ent, x2, ent, color = base, width = 2),
-             lSl  = line.new(x1, sl, x2, sl, color = colSl, width = 1,
-                  style = line.style_dashed),
-             lTp1 = line.new(x1, tp1, x2, tp1, color = color.new(colTp, 40),
-                  width = 1, style = line.style_dotted),
-             lTp2 = line.new(x1, tp2, x2, tp2, color = colTp, width = 1,
-                  style = line.style_dashed),
-             lb   = label.new(x2, ent,
-                  tag + "  entry " + str.tostring(ent, format.mintick) +
-                  "\nSL " + str.tostring(sl, format.mintick) +
-                  "  (risk $" + str.tostring(risk, "#.##") + ")" +
-                  "\nTP1 " + str.tostring(tp1, format.mintick) + "  half off" +
-                  "\nTP2 " + str.tostring(tp2, format.mintick),
-                  style = label.style_label_left, color = color.new(base, 15),
-                  textcolor = isLong ? #363A45 : color.white, size = size.tiny)))
+    // A transparent object still occupies a slot in the drawing budget, so the
+    // skip case builds the same shape and hides it rather than branching into a
+    // second type. Uniform objects also keep the FIFO eviction trivial.
+    hide   = tooWide or not sigBoxes
+    pHide  = tooWide or not sigPills
+    f_pushPlan(SigPlan.new(
+         ent = ent, sl = sl, tp3 = tp3, isLong = isLong, done = tooWide, born = x1,
+         lEnt = line.new(x1, ent, tooWide ? x1 : x2, ent,
+              color = tooWide ? COL_NONE : base, width = 2),
+         lSl  = line.new(x1, sl, tooWide ? x1 : x2, sl,
+              color = tooWide ? COL_NONE : colSl, width = 1, style = line.style_dashed),
+         lTp1 = line.new(x1, tp1, tooWide ? x1 : x2, tp1,
+              color = tooWide ? COL_NONE : color.new(colTp, 45), width = 1,
+              style = line.style_dotted),
+         lTp2 = line.new(x1, tp2, tooWide ? x1 : x2, tp2,
+              color = tooWide ? COL_NONE : color.new(colTp, 25), width = 1,
+              style = line.style_dotted),
+         lTp3 = line.new(x1, tp3, tooWide ? x1 : x2, tp3,
+              color = tooWide ? COL_NONE : colTp, width = 1, style = line.style_dashed),
+         // Entry->stop in red, entry->final target in green. The two blocks are
+         // drawn to scale, so their relative height IS the reward-to-risk.
+         bRisk = box.new(x1, math.max(ent, sl), hide ? x1 : x2, math.min(ent, sl),
+              border_color = COL_NONE, bgcolor = hide ? COL_NONE : color.new(colSl, 88)),
+         bRew = box.new(x1, math.max(ent, tp3), hide ? x1 : x2, math.min(ent, tp3),
+              border_color = COL_NONE, bgcolor = hide ? COL_NONE : color.new(colTp, 90)),
+         lb   = label.new(tooWide ? x1 : x2, ent,
+              tooWide ? "SKIP " + tag + " — stop " + str.tostring(risk, "#.##") +
+                   " > " + str.tostring(sigSlMax, "#.#") + "×ATR"
+              : tag + "  entry " + str.tostring(ent, format.mintick) +
+                   "\nrisk $" + str.tostring(risk, "#.##") +
+                   "   R:R to TP3 " + str.tostring(sigTp3R, "#.#") + ":1",
+              style = label.style_label_left,
+              color = tooWide ? color.new(#787B86, 20) : color.new(base, 15),
+              textcolor = tooWide ? color.white : (isLong ? #363A45 : color.white),
+              size = size.tiny),
+         pSl  = label.new(pHide ? x1 : x2, sl, pHide ? "" : "SL " + str.tostring(sl, format.mintick),
+              style = label.style_label_left, color = pHide ? COL_NONE : colSl,
+              textcolor = pHide ? COL_NONE : color.white, size = size.tiny),
+         pT1  = label.new(pHide ? x1 : x2, tp1, pHide ? "" : "TP1 " + str.tostring(tp1, format.mintick),
+              style = label.style_label_left, color = pHide ? COL_NONE : color.new(colTp, 30),
+              textcolor = pHide ? COL_NONE : color.white, size = size.tiny),
+         pT2  = label.new(pHide ? x1 : x2, tp2, pHide ? "" : "TP2 " + str.tostring(tp2, format.mintick),
+              style = label.style_label_left, color = pHide ? COL_NONE : color.new(colTp, 15),
+              textcolor = pHide ? COL_NONE : color.white, size = size.tiny),
+         pT3  = label.new(pHide ? x1 : x2, tp3, pHide ? "" : "TP3 " + str.tostring(tp3, format.mintick),
+              style = label.style_label_left, color = pHide ? COL_NONE : colTp,
+              textcolor = pHide ? COL_NONE : color.white, size = size.tiny)))
+
+// ── fade finished plans ────────────────────────────────────────────────────
+// Checked every bar so a plan dims the moment it resolves, but the colours are
+// written ONCE, on the transition. Repainting six plans on every historical bar
+// is what froze the tab the first time this repo drew anything.
+if sigFade and array.size(sigPlans) > 0
+    for i = 0 to array.size(sigPlans) - 1
+        SigPlan P = array.get(sigPlans, i)
+        if not P.done
+            hitSl = P.isLong ? low <= P.sl : high >= P.sl
+            hitTp = P.isLong ? high >= P.tp3 : low <= P.tp3
+            expired = bar_index - P.born >= sigPlanLen
+            if hitSl or hitTp or expired
+                P.done := true
+                ghost  = P.isLong ? color.new(#00E676, 82) : color.new(#F23645, 82)
+                line.set_color(P.lEnt, ghost)
+                line.set_color(P.lSl, color.new(colSl, 85))
+                line.set_color(P.lTp1, color.new(colTp, 90))
+                line.set_color(P.lTp2, color.new(colTp, 90))
+                line.set_color(P.lTp3, color.new(colTp, 85))
+                box.set_bgcolor(P.bRisk, color.new(colSl, 96))
+                box.set_bgcolor(P.bRew, color.new(colTp, 96))
+                // The price tags are the worst offenders for congestion, so
+                // they go entirely rather than dimming.
+                label.set_textcolor(P.pSl, COL_NONE)
+                label.set_color(P.pSl, COL_NONE)
+                label.set_text(P.pSl, "")
+                label.set_textcolor(P.pT1, COL_NONE)
+                label.set_color(P.pT1, COL_NONE)
+                label.set_text(P.pT1, "")
+                label.set_textcolor(P.pT2, COL_NONE)
+                label.set_color(P.pT2, COL_NONE)
+                label.set_text(P.pT2, "")
+                label.set_textcolor(P.pT3, COL_NONE)
+                label.set_color(P.pT3, COL_NONE)
+                label.set_text(P.pT3, "")
+                label.set_color(P.lb, color.new(#787B86, 88))
+                label.set_textcolor(P.lb, color.new(#787B86, 45))
+                label.set_size(P.lb, size.tiny)
 
 pLong  := anyLong
 pShort := anyShort
